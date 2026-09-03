@@ -1,8 +1,14 @@
-"""Writer Agent: generates the report content, section by section.
+"""Writer Agent: generates the report content, one section per branch.
 
-On the first pass it drafts each section from the outline and findings. On a
-revision pass it rewrites only the sections the Reviewer flagged, so an approved
-section is never destabilised by an unrelated fix.
+Sections are independent LLM calls, so the graph fans them out to run
+concurrently and merges the results through the `sections` reducer. Three parts:
+
+  plan_sections  decides which sections need work this pass (no LLM)
+  write_section  drafts or revises exactly one section (the parallel unit)
+  assemble       renders the merged sections into the final document
+
+On a revision pass only the flagged sections are dispatched, so an approved
+section is never redrafted -- it simply survives in the merged state.
 """
 
 from __future__ import annotations
@@ -37,10 +43,13 @@ Findings available (this is your only permitted source of fact):
 Sources, cite by index as [n] when you use one:
 {sources}
 
+Other sections already written, which you must not duplicate:
+{siblings}
+
 Write the body of this section only. Do not repeat the heading, do not write an
 introduction to the report, and do not cover other sections' material.
 
-Provenance rules — these are not style preferences:
+Provenance rules - these are not style preferences:
 - A finding marked UNSOURCED is the model's recollection, not verified fact.
   Never state its figures as established. Attribute them ("reportedly",
   "estimated at around") or leave them out. A precise unsourced number stated
@@ -109,73 +118,110 @@ def _issues_for(heading: str, issues: list[Issue]) -> list[Issue]:
     return [i for i in issues if i.section == heading or not i.section]
 
 
-def make_writer_node(deps: Deps):
-    """Build the graph node that writes and revises the report."""
+def plan_sections(state: ReportState) -> list[dict]:
+    """Build one task payload per section that needs writing this pass.
 
-    def write(state: ReportState) -> dict:
-        outline = state["outline"]
-        findings = format_findings(state.get("findings", []))
-        sources = format_sources(state.get("sources", []))
-        review = state.get("review")
-        existing = dict(state.get("sections", {}))
-        revision = state.get("revision", 0)
+    Returns [] when every section is already approved, which the graph reads as
+    "nothing to dispatch".
+    """
+    outline = state["outline"]
+    existing = state.get("sections", {})
+    review = state.get("review")
+    findings = format_findings(state.get("findings", []))
+    sources = format_sources(state.get("sources", []))
 
-        written: dict[str, str] = {}
-        for section in outline.sections:
-            targeted = _issues_for(section.heading, review.issues) if review else []
-            first_pass = section.heading not in existing
+    tasks: list[dict] = []
+    for section in outline.sections:
+        targeted = _issues_for(section.heading, review.issues) if review else []
+        first_pass = section.heading not in existing
+        if not first_pass and not targeted:
+            continue  # already approved; the reducer keeps the existing text
 
-            if not first_pass and not targeted:
-                written[section.heading] = existing[section.heading]  # already approved
-                continue
-
-            if first_pass:
-                body = ask_text(
-                    deps.writer_llm,
-                    SYSTEM,
-                    DRAFT_PROMPT.format(
-                        title=outline.title,
-                        audience=outline.audience,
-                        company=state["company"],
-                        quarter=state["quarter"],
-                        heading=section.heading,
-                        purpose=section.purpose,
-                        key_points="\n".join(f"- {p}" for p in section.key_points) or "- (none)",
-                        target_words=section.target_words,
-                        findings=findings,
-                        sources=sources,
-                    ),
-                )
-            else:
-                body = ask_text(
-                    deps.writer_llm,
-                    SYSTEM,
-                    REVISE_PROMPT.format(
-                        heading=section.heading,
-                        purpose=section.purpose,
-                        current=existing[section.heading],
-                        findings=findings,
-                        sources=sources,
-                        issues="\n".join(
-                            f"- [{i.severity}] {i.problem}\n  Fix: {i.fix}" for i in targeted
-                        ),
-                        target_words=section.target_words,
-                    ),
-                )
-            written[section.heading] = body
-
-        rewritten = sum(
-            1 for h, b in written.items() if existing.get(h) != b and h in existing
+        tasks.append(
+            {
+                "heading": section.heading,
+                "purpose": section.purpose,
+                "key_points": section.key_points,
+                "target_words": section.target_words,
+                "title": outline.title,
+                "audience": outline.audience,
+                "company": state["company"],
+                "quarter": state["quarter"],
+                "findings": findings,
+                "sources": sources,
+                "current": existing.get(section.heading, ""),
+                "issues": targeted,
+                # Siblings let a section avoid repeating what others say. On the
+                # first pass there are none, which is the accepted trade-off of
+                # drafting every section at once instead of in sequence.
+                "siblings": {h: t for h, t in existing.items() if h != section.heading},
+            }
         )
-        log.info("writer: revision %d, %d sections written", revision, len(written))
+    return tasks
+
+
+def make_write_section_node(deps: Deps):
+    """Build the node that writes ONE section. This is the parallel unit."""
+
+    def write_section(task: dict) -> dict:
+        heading = task["heading"]
+        if task["issues"]:
+            body = ask_text(
+                deps.writer_llm,
+                SYSTEM,
+                REVISE_PROMPT.format(
+                    heading=heading,
+                    purpose=task["purpose"],
+                    current=task["current"],
+                    findings=task["findings"],
+                    sources=task["sources"],
+                    issues="\n".join(
+                        f"- [{i.severity}] {i.problem}\n  Fix: {i.fix}" for i in task["issues"]
+                    ),
+                    target_words=task["target_words"],
+                ),
+            )
+        else:
+            siblings = task["siblings"]
+            body = ask_text(
+                deps.writer_llm,
+                SYSTEM,
+                DRAFT_PROMPT.format(
+                    title=task["title"],
+                    audience=task["audience"],
+                    company=task["company"],
+                    quarter=task["quarter"],
+                    heading=heading,
+                    purpose=task["purpose"],
+                    key_points="\n".join(f"- {p}" for p in task["key_points"]) or "- (none)",
+                    target_words=task["target_words"],
+                    findings=task["findings"],
+                    sources=task["sources"],
+                    siblings="\n".join(f"### {h}\n{t[:400]}" for h, t in siblings.items())
+                    or "(none yet - this pass drafts all sections together)",
+                ),
+            )
+        # A single-key dict: the `sections` reducer merges it with whatever the
+        # branches running alongside this one return.
+        return {"sections": {heading: body}}
+
+    return write_section
+
+
+def make_assemble_node(deps: Deps):
+    """Build the node that renders merged sections once all branches finish."""
+
+    def assemble(state: ReportState) -> dict:
+        outline = state["outline"]
+        sections = state.get("sections", {})
+        revision = state.get("revision", 0)
+        written = sum(1 for s in outline.sections if sections.get(s.heading))
+
+        log.info("assemble: pass %d, %d section(s) present", revision + 1, written)
         return {
-            "sections": written,
-            "draft": _render(outline, written, state.get("findings", [])),
+            "draft": _render(outline, sections, state.get("findings", [])),
             "revision": revision + 1,
-            "trace": [
-                f"writer: pass {revision + 1}, "
-                + (f"{rewritten} section(s) revised" if existing else f"{len(written)} section(s) drafted")
-            ],
+            "trace": [f"writer: pass {revision + 1}, {written} section(s) assembled"],
         }
 
-    return write
+    return assemble

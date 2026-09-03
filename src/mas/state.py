@@ -73,6 +73,16 @@ class Review(BaseModel):
         return [i for i in self.issues if i.severity == "blocker"]
 
 
+def merge_sections(left: dict[str, str] | None, right: dict[str, str] | None) -> dict[str, str]:
+    """Reducer for `sections`, written to by several branches at once.
+
+    Parallel `write_section` branches each return a single-entry dict. Merging
+    rather than replacing is what lets an untouched section survive a revision
+    pass: only the branches that actually ran contribute keys.
+    """
+    return {**(left or {}), **(right or {})}
+
+
 class ReportState(TypedDict, total=False):
     """State passed between every node in the graph."""
 
@@ -89,7 +99,7 @@ class ReportState(TypedDict, total=False):
     outline: Outline
 
     # Writer Agent
-    sections: dict[str, str]
+    sections: Annotated[dict[str, str], merge_sections]
     draft: str
 
     # Reviewer Agent

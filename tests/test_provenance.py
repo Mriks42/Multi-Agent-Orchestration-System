@@ -1,9 +1,8 @@
 """Provenance handling: an unsourced finding must never read as verified fact."""
 
-from conftest import FakeChatModel, make_deps
+from conftest import FakeChatModel, make_deps, run_writer_pass
 
 from mas.agents.base import format_findings, provenance
-from mas.agents.writer import make_writer_node
 from mas.state import Finding, initial_state
 
 SOURCED = Finding(claim="Revenue grew 12%.", topic="financials", source_ids=[0])
@@ -25,7 +24,7 @@ def _draft(findings, outline):
     state = initial_state("Company X", "Q4")
     state.update(outline=outline, findings=findings)
     model = FakeChatModel(text_handler=lambda messages, m: "body")
-    return make_writer_node(make_deps(model))(state)["draft"]
+    return run_writer_pass(make_deps(model), state)["draft"]
 
 
 def test_fully_unsourced_report_is_labelled_unverified(sample_outline):
@@ -57,7 +56,7 @@ def test_writer_prompt_carries_the_unsourced_rule_to_the_model(sample_outline):
     model = FakeChatModel(text_handler=lambda messages, m: seen.append(messages) or "body")
     state = initial_state("Company X", "Q4")
     state.update(outline=sample_outline, findings=[UNSOURCED])
-    make_writer_node(make_deps(model))(state)
+    run_writer_pass(make_deps(model), state)
 
     prompt = seen[0][1]["content"]
     assert "UNSOURCED" in prompt

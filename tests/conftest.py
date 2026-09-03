@@ -60,6 +60,25 @@ def make_deps(writer: FakeChatModel, reviewer: FakeChatModel | None = None, sear
     )
 
 
+def run_writer_pass(deps, state):
+    """Drive one full writer pass the way the graph does: plan, fan out, assemble.
+
+    Mirrors dispatch -> write_section (xN) -> assemble in a single call so tests
+    can exercise the whole pass without standing up a graph.
+    """
+    from mas.agents.writer import make_assemble_node, make_write_section_node, plan_sections
+    from mas.state import merge_sections
+
+    tasks = plan_sections(state)
+    write = make_write_section_node(deps)
+    sections = dict(state.get("sections", {}))
+    for task in tasks:
+        sections = merge_sections(sections, write(task)["sections"])
+
+    merged = {**state, "sections": sections}
+    return {**merged, **make_assemble_node(deps)(merged)}
+
+
 @pytest.fixture
 def sample_outline() -> Outline:
     return Outline(

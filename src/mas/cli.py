@@ -23,7 +23,9 @@ console = Console()
 NODE_LABELS = {
     "research": "Research Agent",
     "planning": "Planning Agent",
-    "writer": "Writer Agent",
+    # Sections fan out to parallel `write_section` branches; `assemble` is the
+    # join that reports the pass as a whole.
+    "assemble": "Writer Agent",
     "reviewer": "Reviewer Agent",
 }
 

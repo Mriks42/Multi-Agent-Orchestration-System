@@ -7,6 +7,7 @@ into `Finding` objects that stay linked to the sources supporting them.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import BaseModel, Field
 
@@ -68,10 +69,21 @@ def make_research_node(deps: Deps):
             QUERY_PROMPT.format(company=company, quarter=quarter, focus=focus, n=5),
         )
 
+        # Searches are network-bound and independent, so run them together. The
+        # results are collected in query order rather than completion order,
+        # which keeps source indices - and therefore every citation - stable
+        # across runs.
+        with ThreadPoolExecutor(max_workers=len(plan.queries) or 1) as pool:
+            batches = list(
+                pool.map(
+                    lambda q: deps.search(q, deps.settings.search_results), plan.queries
+                )
+            )
+
         sources: list[Source] = []
         seen: set[str] = set()
-        for query in plan.queries:
-            for source in deps.search(query, deps.settings.search_results):
+        for batch in batches:
+            for source in batch:
                 key = source.url or source.title
                 if key not in seen:
                     seen.add(key)

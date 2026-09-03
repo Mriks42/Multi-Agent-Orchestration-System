@@ -1,6 +1,7 @@
-from conftest import FakeChatModel, make_deps
+from conftest import FakeChatModel, make_deps, run_writer_pass
 
-from mas.agents import make_research_node, make_reviewer_node, make_writer_node
+from mas.agents import make_research_node, make_reviewer_node
+from mas.agents.writer import plan_sections
 from mas.state import Finding, Issue, Review, Source, initial_state
 
 
@@ -47,11 +48,13 @@ def test_writer_only_rewrites_the_sections_the_reviewer_flagged(sample_outline):
         revision=1,
         review=Review(
             approved=False,
-            issues=[Issue(severity="major", section="Competitive Position", problem="thin", fix="add rivals")],
+            issues=[
+                Issue(severity="major", section="Competitive Position", problem="thin", fix="add rivals")
+            ],
         ),
     )
 
-    out = make_writer_node(make_deps(model))(state)
+    out = run_writer_pass(make_deps(model), state)
 
     assert out["sections"]["Executive Summary"] == "ORIGINAL"
     assert out["sections"]["Competitive Position"] == "REWRITTEN"
@@ -73,7 +76,7 @@ def test_writer_applies_report_wide_issues_to_every_section(sample_outline):
         ),
     )
 
-    out = make_writer_node(make_deps(model))(state)
+    out = run_writer_pass(make_deps(model), state)
     assert set(out["sections"].values()) == {"REWRITTEN"}
 
 
@@ -82,9 +85,29 @@ def test_writer_renders_draft_with_headings_in_outline_order(sample_outline):
     state = initial_state("Company X", "Q4")
     state["outline"] = sample_outline
 
-    draft = make_writer_node(make_deps(model))(state)["draft"]
+    draft = run_writer_pass(make_deps(model), state)["draft"]
     assert draft.startswith("# Company X — Q4 Market Research")
     assert draft.index("## Executive Summary") < draft.index("## Competitive Position")
+
+
+def test_plan_sections_emits_one_task_per_section_on_the_first_pass(sample_outline):
+    state = initial_state("Company X", "Q4")
+    state["outline"] = sample_outline
+
+    tasks = plan_sections(state)
+    assert [t["heading"] for t in tasks] == ["Executive Summary", "Competitive Position"]
+    assert all(t["issues"] == [] for t in tasks)
+
+
+def test_plan_sections_emits_nothing_when_every_section_is_approved(sample_outline):
+    """No flagged sections means no work to fan out."""
+    state = initial_state("Company X", "Q4")
+    state.update(
+        outline=sample_outline,
+        sections={"Executive Summary": "a", "Competitive Position": "b"},
+        review=Review(approved=False, issues=[]),
+    )
+    assert plan_sections(state) == []
 
 
 def test_reviewer_overrides_approval_that_contradicts_its_own_issues():
