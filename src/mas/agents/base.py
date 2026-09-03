@@ -1,0 +1,62 @@
+"""Shared helpers for the agent nodes."""
+
+from __future__ import annotations
+
+import logging
+from typing import TypeVar
+
+from pydantic import BaseModel
+
+from ..llm import ChatModel
+
+log = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
+
+
+def ask(llm: ChatModel, schema: type[T], system: str, user: str) -> T:
+    """Run one structured LLM call and get back a validated pydantic object."""
+    structured = llm.with_structured_output(schema)
+    return structured.invoke(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+    )
+
+
+def ask_text(llm: ChatModel, system: str, user: str) -> str:
+    """Run one free-text LLM call and return the message content as a string."""
+    result = llm.invoke(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+    )
+    content = getattr(result, "content", result)
+    if isinstance(content, list):  # some providers return content blocks
+        content = "".join(
+            part.get("text", "") if isinstance(part, dict) else str(part) for part in content
+        )
+    return str(content).strip()
+
+
+def format_sources(sources, limit: int | None = None) -> str:
+    """Render sources as a numbered list the model can cite by index."""
+    chosen = sources[:limit] if limit else sources
+    if not chosen:
+        return "(no external sources retrieved)"
+    return "\n".join(
+        f"[{i}] {s.title} — {s.url or 'no url'}\n    {s.snippet}" for i, s in enumerate(chosen)
+    )
+
+
+def format_findings(findings) -> str:
+    """Render findings so downstream agents can see evidence and confidence."""
+    if not findings:
+        return "(no findings)"
+    return "\n".join(
+        f"- ({f.confidence}) [{f.topic}] {f.claim} "
+        f"{'sources=' + str(f.source_ids) if f.source_ids else '(no source)'}"
+        for f in findings
+    )

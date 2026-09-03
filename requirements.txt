@@ -1,0 +1,8 @@
+langgraph>=1.2
+langchain-openai>=1.6
+openai>=3.0
+pydantic>=2.9
+pydantic-settings>=2.7
+python-dotenv>=1.0
+ddgs>=9.0
+rich>=13.0
