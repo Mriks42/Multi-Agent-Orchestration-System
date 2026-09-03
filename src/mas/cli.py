@@ -80,6 +80,15 @@ def _summarise(state: ReportState) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    # Windows terminals default to cp1252, which mangles the em-dashes and box
+    # characters in agent headings into "?".
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # already wrapped, or not a real tty
+            pass
+
     load_dotenv()
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING,
@@ -119,6 +128,21 @@ def main(argv: list[str] | None = None) -> int:
         return 130
 
     _summarise(state)
+
+    sourced = sum(1 for f in state.get("findings", []) if f.source_ids)
+    total = len(state.get("findings", []))
+    if total and not sourced:
+        console.print(
+            "\n[bold red]Every figure in this report is model recollection.[/bold red] "
+            "No finding is backed by a retrieved source"
+            + (" (search was disabled)." if args.no_search else " (search returned nothing).")
+            + " Verify before using."
+        )
+    elif total - sourced:
+        console.print(
+            f"\n[yellow]{total - sourced} of {total} findings are unsourced[/yellow] "
+            "and rest on model recollection."
+        )
 
     out = args.out or Path("reports") / f"{_slug(args.company)}-{_slug(args.quarter)}-{date.today()}.md"
     out.parent.mkdir(parents=True, exist_ok=True)

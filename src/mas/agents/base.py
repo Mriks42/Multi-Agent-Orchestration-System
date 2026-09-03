@@ -52,11 +52,21 @@ def format_sources(sources, limit: int | None = None) -> str:
 
 
 def format_findings(findings) -> str:
-    """Render findings so downstream agents can see evidence and confidence."""
+    """Render findings so downstream agents can see evidence and confidence.
+
+    UNSOURCED is spelled out rather than implied: it is the single most
+    important signal the Writer and Reviewer act on, and a marker they skim
+    past is exactly how a recalled figure becomes a stated fact.
+    """
     if not findings:
         return "(no findings)"
     return "\n".join(
         f"- ({f.confidence}) [{f.topic}] {f.claim} "
-        f"{'sources=' + str(f.source_ids) if f.source_ids else '(no source)'}"
+        + (f"sources={f.source_ids}" if f.source_ids else "**UNSOURCED - model recollection**")
         for f in findings
     )
+
+
+def provenance(findings) -> tuple[int, int]:
+    """Return (sourced, total) finding counts."""
+    return sum(1 for f in findings if f.source_ids), len(findings)

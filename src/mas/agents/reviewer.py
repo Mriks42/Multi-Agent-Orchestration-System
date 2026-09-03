@@ -39,6 +39,13 @@ Review the draft and report back.
 1. Flag every statement that the findings do not support, especially invented
    figures, dates, percentages and named entities. List them in
    `unsupported_claims` and raise a matching issue.
+1a. A finding marked UNSOURCED is model recollection, NOT established fact. If
+   the draft states an unsourced figure flatly ("revenue was $3 billion")
+   instead of attributing it ("reportedly around $3 billion"), that is a
+   blocker. Check every number in the draft against this rule.
+1b. A sentence that openly says information is unavailable or was not disclosed
+   is honest reporting, NOT an unsupported claim. Never flag it as one. Raise a
+   minor issue only if such hedging has grown long enough to pad the section.
 2. Raise issues for structural problems too: a section that misses its purpose,
    contradictions between sections, or padding with no content.
 3. Severity: "blocker" for a factual error or fabrication, "major" for a real

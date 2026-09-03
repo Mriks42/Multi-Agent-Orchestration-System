@@ -11,7 +11,7 @@ import logging
 
 from ..deps import Deps
 from ..state import Issue, ReportState
-from .base import ask_text, format_findings, format_sources
+from .base import ask_text, format_findings, format_sources, provenance
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +38,17 @@ Sources, cite by index as [n] when you use one:
 {sources}
 
 Write the body of this section only. Do not repeat the heading, do not write an
-introduction to the report, and do not cover other sections' material. If a key
-point is not supported by the findings, say what is known and note the gap
-rather than inventing detail."""
+introduction to the report, and do not cover other sections' material.
+
+Provenance rules — these are not style preferences:
+- A finding marked UNSOURCED is the model's recollection, not verified fact.
+  Never state its figures as established. Attribute them ("reportedly",
+  "estimated at around") or leave them out. A precise unsourced number stated
+  flatly is the worst failure this report can contain.
+- A finding with sources may be stated directly; cite it as [n].
+- If a key point has no supporting finding, note the gap in one short clause and
+  move on. Do not invent detail to fill it, and do not pad the section with
+  paragraphs about what you could not determine."""
 
 REVISE_PROMPT = """You are revising one section of a market research report.
 
@@ -64,11 +72,30 @@ what was flagged, and stay near {target_words} words. Output the revised body
 text only."""
 
 
-def _render(outline, sections: dict[str, str]) -> str:
-    """Assemble the section map into one markdown document."""
+def _render(outline, sections: dict[str, str], findings) -> str:
+    """Assemble the section map into one markdown document.
+
+    The provenance footer is not decoration: a reader who cannot see that a
+    report rests on unsourced recall will read its figures as researched.
+    """
     parts = [f"# {outline.title}", ""]
     for section in outline.sections:
         parts += [f"## {section.heading}", "", sections.get(section.heading, "").strip(), ""]
+
+    sourced, total = provenance(findings)
+    parts += ["---", "", "## Provenance", ""]
+    if total == 0:
+        parts.append("No research findings backed this report.")
+    elif sourced == 0:
+        parts.append(
+            f"**None of the {total} findings behind this report are backed by a retrieved "
+            "source.** Every figure is model recollection and must be verified before use."
+        )
+    else:
+        parts.append(
+            f"{sourced} of {total} findings are backed by a retrieved source; "
+            f"{total - sourced} rest on model recollection and need verification."
+        )
     return "\n".join(parts).strip() + "\n"
 
 
@@ -138,7 +165,7 @@ def make_writer_node(deps: Deps):
         log.info("writer: revision %d, %d sections written", revision, len(written))
         return {
             "sections": written,
-            "draft": _render(outline, written),
+            "draft": _render(outline, written, state.get("findings", [])),
             "revision": revision + 1,
             "trace": [
                 f"writer: pass {revision + 1}, "
