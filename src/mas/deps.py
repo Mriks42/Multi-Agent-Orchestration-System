@@ -19,13 +19,18 @@ class Deps:
     writer_llm: ChatModel
     reviewer_llm: ChatModel
     search: SearchTool
+    broker: object | None = None
+    """When set, section writing is farmed out to worker processes instead of
+    running as in-process concurrent branches. Typed loosely to keep the
+    distributed package an optional import."""
 
     @classmethod
-    def from_settings(cls, settings: Settings | None = None) -> "Deps":
+    def from_settings(cls, settings: Settings | None = None, broker=None) -> "Deps":
         settings = settings or load_settings()
         return cls(
             settings=settings,
             writer_llm=build_chat_model(settings, "default"),
             reviewer_llm=build_chat_model(settings, "reviewer"),
             search=build_search_tool(settings.search_backend),
+            broker=broker,
         )

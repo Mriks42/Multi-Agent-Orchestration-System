@@ -6,3 +6,7 @@ __pycache__/
 reports/*.md
 !reports/.gitkeep
 *.egg-info/
+
+# Distributed task queue
+mas-queue.db
+mas-queue.db-*

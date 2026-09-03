@@ -11,6 +11,7 @@ dynamic = ["dependencies"]
 
 [project.scripts]
 mas = "mas.cli:main"
+mas-worker = "mas.distributed.cli:main"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
@@ -20,4 +21,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: spawns real subprocesses"]
 pythonpath = ["src"]

@@ -15,6 +15,7 @@ from rich.console import Console
 from .config import load_settings
 from .deps import Deps
 from .graph import run_report
+from .distributed.broker import BrokerError
 from .llm import MissingAPIKey
 from .state import ReportState
 
@@ -52,6 +53,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-search", action="store_true", help="Skip web search; rely on model knowledge only"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Log every agent call")
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        help="Farm section writing out to mas-worker processes via a shared queue",
+    )
+    parser.add_argument("--queue", default=None, help="Queue file for --distributed")
     return parser
 
 
@@ -104,8 +111,14 @@ def main(argv: list[str] | None = None) -> int:
         search_backend="none" if args.no_search else None,
     )
 
+    broker = None
+    if args.distributed:
+        from .distributed import SqliteBroker
+
+        broker = SqliteBroker(args.queue or settings.broker_path)
+
     try:
-        deps = Deps.from_settings(settings)
+        deps = Deps.from_settings(settings, broker=broker)
     except MissingAPIKey as exc:
         console.print(f"[bold red]{exc}[/bold red]")
         return 2

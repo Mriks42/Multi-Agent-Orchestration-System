@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     request_timeout: float = 90.0
     max_retries: int = 3
 
+    # Distributed execution
+    broker_path: str = "mas-queue.db"
+    """SQLite file backing the task queue when workers are used."""
+
+    task_timeout: float = 600.0
+    """How long the orchestrator waits for workers to finish a pass."""
+
+    lease_seconds: float = 90.0
+    """A claimed task is reclaimed if its worker stops renewing for this long."""
+
+    max_attempts: int = 3
+
 
 def load_settings(**overrides) -> Settings:
     """Load settings, applying explicit keyword overrides last."""

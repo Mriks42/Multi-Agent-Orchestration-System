@@ -59,33 +59,74 @@ def route_after_review(state: ReportState) -> Literal["revise", "publish"]:
     return "revise"
 
 
+def make_distributed_node(deps: Deps):
+    """Build the node that farms sections out to worker processes.
+
+    The distributed and in-process paths write the same `sections` update, so
+    every downstream node -- and every test of them -- is unchanged by the
+    choice. Only the dispatch mechanism differs.
+    """
+    import uuid
+
+    def distribute(state: ReportState) -> dict:
+        tasks = plan_sections(state)
+        if not tasks:
+            return {}
+
+        # Issues are pydantic objects; workers receive JSON, so flatten them.
+        payloads = [{**t, "issues": [i.model_dump() for i in t["issues"]]} for t in tasks]
+        run_id = f"{state['company']}-{state.get('revision', 0)}-{uuid.uuid4().hex[:8]}"
+
+        deps.broker.submit(run_id, payloads)
+        log.info("dispatched %d section(s) to workers as run %s", len(payloads), run_id)
+        results = deps.broker.gather(run_id, timeout=deps.settings.task_timeout)
+
+        sections: dict[str, str] = {}
+        for result in results.values():
+            sections.update(result.get("sections", {}))
+        return {"sections": sections}
+
+    return distribute
+
+
 def build_graph(deps: Deps, checkpointer=None):
-    """Wire the agents into a compiled LangGraph application."""
+    """Wire the agents into a compiled LangGraph application.
+
+    Two topologies share every node but the dispatch step: with a broker,
+    sections go to worker processes; without one, they fan out in-process.
+    """
     graph = StateGraph(ReportState)
+    distributed = deps.broker is not None
 
     graph.add_node("research", make_research_node(deps))
     graph.add_node("planning", make_planning_node(deps))
-    graph.add_node("write_section", make_write_section_node(deps))
     graph.add_node("assemble", make_assemble_node(deps))
     graph.add_node("reviewer", make_reviewer_node(deps))
 
     graph.add_edge(START, "research")
     graph.add_edge("research", "planning")
 
-    # Fan out from planning, and again from the reviewer on a revision pass.
-    graph.add_conditional_edges("planning", dispatch_sections, ["write_section", "assemble"])
-    graph.add_edge("write_section", "assemble")
+    if distributed:
+        graph.add_node("distribute", make_distributed_node(deps))
+        graph.add_edge("planning", "distribute")
+        graph.add_edge("distribute", "assemble")
+        revise_target = "distribute"
+    else:
+        graph.add_node("write_section", make_write_section_node(deps))
+        graph.add_edge("write_section", "assemble")
+        # Fan out from planning, and again from the reviewer on a revision pass.
+        graph.add_conditional_edges("planning", dispatch_sections, ["write_section", "assemble"])
+        graph.add_node("dispatch_revision", lambda state: {})
+        graph.add_conditional_edges(
+            "dispatch_revision", dispatch_sections, ["write_section", "assemble"]
+        )
+        revise_target = "dispatch_revision"
+
     graph.add_edge("assemble", "reviewer")
     graph.add_conditional_edges(
         "reviewer",
         route_after_review,
-        {"revise": "dispatch_revision", "publish": END},
-    )
-
-    # A revision re-enters the same fan-out, so only flagged sections are redrafted.
-    graph.add_node("dispatch_revision", lambda state: {})
-    graph.add_conditional_edges(
-        "dispatch_revision", dispatch_sections, ["write_section", "assemble"]
+        {"revise": revise_target, "publish": END},
     )
 
     return graph.compile(checkpointer=checkpointer)
