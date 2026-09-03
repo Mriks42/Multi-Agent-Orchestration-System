@@ -83,6 +83,25 @@ completes. With no worker left running, the orchestrator waits out
 Redis is the natural backend for real deployment; `Broker` is a protocol, so it
 is a drop-in alongside the SQLite one.
 
+## Surviving an interrupted run
+
+Workers are recoverable, but the orchestrator holds the research, the outline
+and every finished section. `--resume` persists those after each node:
+
+```bash
+mas --company "Cloudflare" --quarter "Q4 2025" --resume
+# ...killed after research, planning and drafting...
+
+mas --company "Cloudflare" --quarter "Q4 2025" --resume     # same command
+# Resuming cloudflare-q4-2025-2026-09-02 — 8 findings; 7 sections planned;
+#   7 written — next: reviewer
+```
+
+Measured: 22s of work before the kill, 8s to finish on resume — nothing
+re-researched, nothing re-drafted. The thread id is derived from company,
+quarter and date, so re-running the same command continues that report rather
+than quietly starting a second one; `--fresh` forces a new run.
+
 ### Useful flags
 
 | Flag | Effect |
@@ -92,6 +111,9 @@ is a drop-in alongside the SQLite one.
 | `--no-search` | Skip web search; rely on model knowledge only |
 | `--model` / `--reviewer-model` | Override either model |
 | `-v` | Log every agent call |
+| `--distributed --queue F` | Farm sections out to `mas-worker` processes |
+| `--resume` | Persist progress; re-run the same command to continue |
+| `--fresh` | With `--resume`, ignore saved state and start over |
 
 ## How it works
 
@@ -151,6 +173,25 @@ processes; without one, they fan out in-process. Both write an identical
 `sections` update, so every downstream node is unchanged by the choice — and a
 test asserts both paths produce byte-identical reports.
 
+**Task recovery and run recovery are different problems.** A lease returns a
+dead worker's *section* to the queue, but the orchestrator holds the research,
+the outline and every finished section — killing it used to lose all of that.
+`--resume` checkpoints state after every node, so the same command continues
+from where it stopped ([checkpoint.py](src/mas/checkpoint.py)). Thread ids are
+derived from company, quarter and date rather than random, because a resume key
+you cannot reproduce is not a resume key.
+
+**Evals are deterministic first, judged second.** `metrics.py` scores provenance
+and grounding as pure functions of the final state — no model, so a number moves
+only when the reports do. Seeded-error probes then plant known defects and check
+the Reviewer catches them; the first run scored 75%, missing a citation to a
+source that did not exist, which is why `check_citations` now verifies indices in
+code. The LLM judge covers what neither can reach — redundancy, purpose fit,
+specificity — with its known biases controlled: pairwise comparisons run in both
+orderings and a flipped verdict is scored as a tie, the rubric states outright
+that length is not quality, and the judge is pinned at temperature 0. Its
+absolute scores compress at the ceiling, so pairwise deltas are the signal.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -161,10 +202,11 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-54 tests covering the routing table, the revision loop, budget exhaustion,
+101 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
-retries, crash recovery, and the full graph end to end — all offline. One test
-spawns two real subprocesses to prove the queue coordinates across processes.
+retries, crash recovery, checkpoint resume, eval metrics, and the judge's
+bias controls — all offline. One test spawns two real subprocesses to prove the
+queue coordinates across processes.
 
 ## Layout
 
@@ -176,6 +218,7 @@ src/mas/
   config.py             env-backed settings
   llm.py                model factory — the only place OpenAI is constructed
   cli.py                `mas` entry point
+  checkpoint.py         durable run state, thread ids, resume
   agents/
     research.py         plans queries, searches, extracts findings
     planning.py         findings -> outline
@@ -184,6 +227,13 @@ src/mas/
     base.py             structured + free-text LLM calls, prompt rendering
   tools/
     search.py           DuckDuckGo backend + null backend
+  evals/
+    metrics.py          deterministic scores from a finished state
+    seeded.py           planted-defect probes + clean control
+    judge.py            LLM-as-judge with position/verbosity bias controls
+    cases.py            the case set, spanning evidence coverage
+    runner.py           suite execution, baselines, diffing
+    cli.py              `mas-eval` entry point
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
@@ -200,10 +250,14 @@ tests/
   test_broker.py        atomic claims, leases, retries, idempotency
   test_distributed.py   workers, crash recovery, two real subprocesses
   test_search.py        backend selection, graceful failure
+  test_checkpoint.py    resume skips completed work
+  test_evals.py         metric determinism, aggregation, probes
+  test_judge.py         position-bias control, judge validation
 ```
 
-Two commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
-worker that writes sections from the queue.
+Three commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+worker that writes sections from the queue, and **`mas-eval`** scores the
+pipeline against a stored baseline.
 
 ## Cost note
 

@@ -12,9 +12,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from rich.console import Console
 
+from uuid import uuid4
+
+from .checkpoint import DEFAULT_PATH, checkpointer, describe, load, thread_id
 from .config import load_settings
 from .deps import Deps
-from .graph import run_report
+from .graph import build_graph, run_report
 from .distributed.broker import BrokerError
 from .llm import MissingAPIKey
 from .state import ReportState
@@ -59,6 +62,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Farm section writing out to mas-worker processes via a shared queue",
     )
     parser.add_argument("--queue", default=None, help="Queue file for --distributed")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Persist progress and resume this report if it was interrupted",
+    )
+    parser.add_argument("--runs-db", default=None, help="Checkpoint file for --resume")
+    parser.add_argument(
+        "--fresh", action="store_true", help="With --resume, ignore saved state and start over"
+    )
     return parser
 
 
@@ -129,17 +141,33 @@ def main(argv: list[str] | None = None) -> int:
         f"up to {settings.max_revisions} revision(s)[/dim]\n"
     )
 
+    tid = None
+    if args.resume:
+        tid = thread_id(args.company, args.quarter, suffix=uuid4().hex[:6] if args.fresh else "")
+
     try:
-        state = run_report(
-            deps,
-            company=args.company,
-            quarter=args.quarter,
-            focus=args.focus,
-            max_revisions=args.max_revisions,
-            on_event=_report_progress,
-        )
+        with checkpointer(args.runs_db or DEFAULT_PATH if args.resume else None) as saver:
+            if saver is not None and not args.fresh:
+                snapshot = load(build_graph(deps, checkpointer=saver), tid)
+                if snapshot:
+                    console.print(f"[bold]Resuming[/bold] {tid} — {describe(snapshot)}\n")
+
+            state = run_report(
+                deps,
+                company=args.company,
+                quarter=args.quarter,
+                focus=args.focus,
+                max_revisions=args.max_revisions,
+                on_event=_report_progress,
+                checkpointer=saver,
+                thread_id=tid,
+            )
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted.[/yellow]")
+        if args.resume:
+            console.print(
+                f"[dim]Progress saved as {tid}. Re-run the same command to continue.[/dim]"
+            )
         return 130
 
     _summarise(state)

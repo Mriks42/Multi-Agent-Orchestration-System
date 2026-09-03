@@ -10,3 +10,7 @@ reports/*.md
 # Distributed task queue
 mas-queue.db
 mas-queue.db-*
+
+# LangGraph run checkpoints
+mas-runs.db
+mas-runs.db-*

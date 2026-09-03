@@ -139,24 +139,41 @@ def run_report(
     focus: str = "",
     max_revisions: int | None = None,
     on_event=None,
+    checkpointer=None,
+    thread_id: str | None = None,
 ) -> ReportState:
     """Run one report end to end and return the final state.
 
     `on_event(node, update)` is called after each agent finishes, which is what
     the CLI uses to show live progress.
+
+    With a `checkpointer` and `thread_id`, state is persisted after every node.
+    Passing a thread that already has saved state resumes it: LangGraph is given
+    `None` as input, which means "continue from the last checkpoint" rather than
+    "start again".
     """
-    app = build_graph(deps)
-    state = initial_state(
+    app = build_graph(deps, checkpointer=checkpointer)
+    config = {"recursion_limit": 50}
+
+    state: ReportState | None = initial_state(
         company,
         quarter,
         focus,
         max_revisions if max_revisions is not None else deps.settings.max_revisions,
     )
+    final: ReportState = dict(state)
 
-    final: ReportState = state
+    if checkpointer is not None and thread_id:
+        config["configurable"] = {"thread_id": thread_id}
+        saved = app.get_state(config)
+        if saved and saved.values:
+            log.info("resuming thread %s", thread_id)
+            final = dict(saved.values)
+            state = None  # None tells LangGraph to continue, not restart
+
     # `stream` yields one {node_name: update} dict per completed node, and the
     # recursion limit is a hard stop in case a future edge change reopens a loop.
-    for chunk in app.stream(state, {"recursion_limit": 50}, stream_mode="updates"):
+    for chunk in app.stream(state, config, stream_mode="updates"):
         for node, update in chunk.items():
             if not isinstance(update, dict):
                 continue
