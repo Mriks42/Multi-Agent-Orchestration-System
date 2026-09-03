@@ -115,6 +115,10 @@ than quietly starting a second one; `--fresh` forces a new run.
 | `--resume` | Persist progress; re-run the same command to continue |
 | `--fresh` | With `--resume`, ignore saved state and start over |
 
+`--quarter` is free-form but must name a year: `Q1 2025`, `FY2024`, `H1 2025`,
+`2023-2025` all work; a bare `Q4` is rejected rather than letting the model pick
+a year silently.
+
 ## How it works
 
 **One shared state, no hidden channels.** Every agent is a function
@@ -192,6 +196,16 @@ orderings and a flipped verdict is scored as a tie, the rubric states outright
 that length is not quality, and the judge is pinned at temperature 0. Its
 absolute scores compress at the ceiling, so pairwise deltas are the signal.
 
+**The period is validated, and periods are kept apart.** A live Shopify run
+found four different "Q1 2025" revenue figures and wrote a whole section
+attributing them to "variations in data interpretation" — when the likelier
+explanation was that they described different periods. The system had no model
+of time at all. It still has no fiscal calendar (that needs per-company data),
+but it now insists the period names a year, tells the agents to treat a period
+mismatch as the first explanation for conflicting figures, and warns on the
+companies whose fiscal year is known to be offset
+([period.py](src/mas/period.py)).
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -202,7 +216,7 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-101 tests covering the routing table, the revision loop, budget exhaustion,
+124 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
 retries, crash recovery, checkpoint resume, eval metrics, and the judge's
 bias controls — all offline. One test spawns two real subprocesses to prove the
@@ -219,6 +233,7 @@ src/mas/
   llm.py                model factory — the only place OpenAI is constructed
   cli.py                `mas` entry point
   checkpoint.py         durable run state, thread ids, resume
+  period.py             reporting-period validation and fiscal hints
   agents/
     research.py         plans queries, searches, extracts findings
     planning.py         findings -> outline
@@ -253,6 +268,7 @@ tests/
   test_checkpoint.py    resume skips completed work
   test_evals.py         metric determinism, aggregation, probes
   test_judge.py         position-bias control, judge validation
+  test_period.py        period validation, fiscal hints, trace accuracy
 ```
 
 Three commands are installed: **`mas`** runs a report, **`mas-worker`** runs a

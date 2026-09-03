@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 
 from ..deps import Deps
+from ..period import discipline
 from ..state import Issue, ReportState
 from .base import ask_text, format_findings, format_sources, provenance
 
@@ -48,6 +49,8 @@ Other sections already written, which you must not duplicate:
 
 Write the body of this section only. Do not repeat the heading, do not write an
 introduction to the report, and do not cover other sections' material.
+
+{discipline}
 
 Provenance rules - these are not style preferences:
 - A finding marked UNSOURCED is the model's recollection, not verified fact.
@@ -150,6 +153,7 @@ def plan_sections(state: ReportState) -> list[dict]:
                 "findings": findings,
                 "sources": sources,
                 "current": existing.get(section.heading, ""),
+                "discipline": discipline(state["company"], state["quarter"]),
                 "issues": targeted,
                 # Siblings let a section avoid repeating what others say. On the
                 # first pass there are none, which is the accepted trade-off of
@@ -197,6 +201,7 @@ def make_write_section_node(deps: Deps):
                     target_words=task["target_words"],
                     findings=task["findings"],
                     sources=task["sources"],
+                    discipline=task.get("discipline", ""),
                     siblings="\n".join(f"### {h}\n{t[:400]}" for h, t in siblings.items())
                     or "(none yet - this pass drafts all sections together)",
                 ),
@@ -215,13 +220,22 @@ def make_assemble_node(deps: Deps):
         outline = state["outline"]
         sections = state.get("sections", {})
         revision = state.get("revision", 0)
-        written = sum(1 for s in outline.sections if sections.get(s.heading))
+        present = sum(1 for s in outline.sections if sections.get(s.heading))
 
-        log.info("assemble: pass %d, %d section(s) present", revision + 1, written)
+        # Report what this pass actually did, not how many sections exist. The
+        # fan-out refactor lost that distinction, so a revision touching one
+        # section still announced "6 section(s) assembled".
+        dispatched = len(plan_sections(state))
+        detail = (
+            f"{present} section(s) drafted" if revision == 0
+            else f"{dispatched} of {present} section(s) revised"
+        )
+
+        log.info("assemble: pass %d, %s", revision + 1, detail)
         return {
             "draft": _render(outline, sections, state.get("findings", [])),
             "revision": revision + 1,
-            "trace": [f"writer: pass {revision + 1}, {written} section(s) assembled"],
+            "trace": [f"writer: pass {revision + 1}, {detail}"],
         }
 
     return assemble

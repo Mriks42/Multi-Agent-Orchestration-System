@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pydantic import BaseModel, Field
 
 from ..deps import Deps
+from ..period import discipline
 from ..state import Finding, ReportState, Source
 from .base import ask, format_sources
 
@@ -44,6 +45,9 @@ Extract the factual findings that a market research report on this company's
 - If a claim comes from your own background knowledge and no source above backs
   it, leave `source_ids` empty and set confidence to "low".
 - Prefer figures, dates and named entities over adjectives.
+
+{discipline}
+
 Return 8-15 findings."""
 
 
@@ -98,6 +102,7 @@ def make_research_node(deps: Deps):
                 quarter=quarter,
                 focus=focus,
                 sources=format_sources(sources),
+                discipline=discipline(company, quarter),
             ),
         )
 

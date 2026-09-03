@@ -20,6 +20,7 @@ from .deps import Deps
 from .graph import build_graph, run_report
 from .distributed.broker import BrokerError
 from .llm import MissingAPIKey
+from .period import InvalidPeriod, validate
 from .state import ReportState
 
 console = Console()
@@ -44,7 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate a market research report with a team of coordinated agents.",
     )
     parser.add_argument("--company", required=True, help="Company the report is about")
-    parser.add_argument("--quarter", default="Q4", help="Reporting period, e.g. Q4 2025")
+    parser.add_argument(
+        "--quarter",
+        required=True,
+        help="Reporting period including the year, e.g. 'Q1 2025', 'FY2024', 'H1 2025'",
+    )
     parser.add_argument("--focus", default="", help="Extra angle to emphasise")
     parser.add_argument("--out", type=Path, help="Where to write the report (default: reports/)")
     parser.add_argument("--model", help="Override the drafting model")
@@ -115,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO if args.verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    try:
+        validate(args.quarter)
+    except InvalidPeriod as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return 2
 
     settings = load_settings(
         model=args.model,

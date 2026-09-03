@@ -47,6 +47,10 @@ Review the draft and report back.
 1b. A sentence that openly says information is unavailable or was not disclosed
    is honest reporting, NOT an unsupported claim. Never flag it as one. Raise a
    minor issue only if such hedging has grown long enough to pad the section.
+1c. Check that every figure belongs to {quarter}. Sources often report adjacent
+   quarters, trailing-twelve-month totals or full years. A figure from another
+   period presented as this one's is a blocker, and conflicting values for the
+   same metric usually mean a period mismatch rather than disagreeing sources.
 2. Raise issues for structural problems too: a section that misses its purpose,
    contradictions between sections, or padding with no content.
 3. Severity: "blocker" for a factual error or fabrication, "major" for a real
