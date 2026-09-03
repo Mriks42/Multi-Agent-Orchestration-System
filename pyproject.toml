@@ -12,6 +12,7 @@ dynamic = ["dependencies"]
 [project.scripts]
 mas = "mas.cli:main"
 mas-worker = "mas.distributed.cli:main"
+mas-eval = "mas.evals.cli:main"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

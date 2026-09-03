@@ -8,9 +8,10 @@ the Writer with actionable fixes attached.
 from __future__ import annotations
 
 import logging
+import re
 
 from ..deps import Deps
-from ..state import ReportState, Review
+from ..state import Issue, ReportState, Review
 from .base import ask, format_findings, format_sources
 
 log = logging.getLogger(__name__)
@@ -57,6 +58,32 @@ Review the draft and report back.
 This is revision {revision} of at most {max_revisions}."""
 
 
+_CITATION = re.compile(r"\[(\d+)\]")
+
+
+def check_citations(draft: str, sources) -> list[Issue]:
+    """Find citations pointing past the end of the source list.
+
+    A deterministic check, because the model is unreliable at it: an eval probe
+    planting `[47]` against two sources passed review untouched. Anything code
+    can verify exactly should not be delegated to a model that verifies it
+    sometimes -- the LLM judges meaning, arithmetic like this is checked here.
+    """
+    orphans = sorted({int(m.group(1)) for m in _CITATION.finditer(draft)
+                      if int(m.group(1)) >= len(sources)})
+    return [
+        Issue(
+            severity="blocker",
+            section="",
+            problem=f"Citation [{n}] refers to a source that does not exist "
+                    f"(only {len(sources)} source(s) were retrieved).",
+            fix=f"Remove [{n}] or replace it with a valid source index "
+                f"(0-{len(sources) - 1})." if sources else f"Remove [{n}]; no sources were retrieved.",
+        )
+        for n in orphans
+    ]
+
+
 def make_reviewer_node(deps: Deps):
     """Build the graph node that reviews the draft."""
 
@@ -75,6 +102,12 @@ def make_reviewer_node(deps: Deps):
                 max_revisions=state.get("max_revisions", 2),
             ),
         )
+
+        # Mechanical checks the model is unreliable at, merged into its verdict.
+        mechanical = check_citations(state.get("draft", ""), state.get("sources", []))
+        if mechanical:
+            verdict.issues = list(verdict.issues) + mechanical
+            log.info("reviewer: %d orphan citation(s) caught mechanically", len(mechanical))
 
         # The model is asked to be consistent here, but the graph's exit
         # condition depends on it, so enforce it rather than trusting it.
