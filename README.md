@@ -170,16 +170,40 @@ spawns two real subprocesses to prove the queue coordinates across processes.
 
 ```
 src/mas/
-  state.py        shared state + pydantic schemas
-  graph.py        node wiring, routing, run_report()
-  deps.py         dependency container
-  config.py       env-backed settings
-  llm.py          model factory (the only place OpenAI is constructed)
-  cli.py          command line entry point
-  agents/         research, planning, writer (plan/write/assemble), reviewer
-  tools/search.py DuckDuckGo backend + null backend
-  distributed/    broker protocol, SQLite queue, worker process
+  state.py              shared state, pydantic schemas, section reducer
+  graph.py              node wiring, routing, run_report()
+  deps.py               dependency container (models, search, broker)
+  config.py             env-backed settings
+  llm.py                model factory — the only place OpenAI is constructed
+  cli.py                `mas` entry point
+  agents/
+    research.py         plans queries, searches, extracts findings
+    planning.py         findings -> outline
+    writer.py           plan_sections / write_section / assemble
+    reviewer.py         fact-checks the draft against the findings
+    base.py             structured + free-text LLM calls, prompt rendering
+  tools/
+    search.py           DuckDuckGo backend + null backend
+  distributed/
+    broker.py           Broker protocol, Task lifecycle, lease semantics
+    sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
+    worker.py           claim -> write -> complete loop, lease renewal
+    cli.py              `mas-worker` entry point
+
+tests/
+  conftest.py           scripted fake model, Deps builder, writer-pass helper
+  test_state.py         state construction, issue severity
+  test_routing.py       the revise/publish decision table
+  test_agents.py        per-agent behaviour with fakes
+  test_provenance.py    unsourced findings never read as verified fact
+  test_graph.py         full graph end to end, fan-out, revision loop
+  test_broker.py        atomic claims, leases, retries, idempotency
+  test_distributed.py   workers, crash recovery, two real subprocesses
+  test_search.py        backend selection, graceful failure
 ```
+
+Two commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+worker that writes sections from the queue.
 
 ## Cost note
 
