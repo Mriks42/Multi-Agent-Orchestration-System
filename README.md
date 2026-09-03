@@ -75,6 +75,16 @@ naming them (plus any report-wide issue naming none), so an approved section is
 never destabilised by an unrelated fix — and a revision pass costs a fraction of
 a full redraft.
 
+**Recollection is never laundered into fact.** This is the failure mode the
+architecture invites: the Reviewer fact-checks the draft against the *findings*,
+so if research invents a figure, the fact-checker will faithfully approve it. A
+live `--no-search` run did exactly that — every number in the report was
+fabricated and confidently stated. So a finding with no `source_ids` is rendered
+to the model as `UNSOURCED`, the Writer must attribute its figures ("reportedly
+$500 billion") instead of asserting them, the Reviewer treats a flatly stated
+unsourced figure as a blocker, and every report carries a Provenance footer
+counting what is actually backed by a source.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -85,8 +95,9 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-22 tests covering the routing table, the revision loop, budget exhaustion,
-citation validation, and the full graph end to end — all offline.
+28 tests covering the routing table, the revision loop, budget exhaustion,
+citation validation, provenance labelling, and the full graph end to end — all
+offline.
 
 ## Layout
 
