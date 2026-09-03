@@ -210,6 +210,13 @@ mismatch as the first explanation for conflicting figures, and warns on the
 companies whose fiscal year is known to be offset
 ([period.py](src/mas/period.py)).
 
+**The judge is validated against a person, or its scores are not quoted.**
+`mas-label` shows you two reports blind, records which you prefer, then replays
+the judge over the same pairs and reports agreement. Below ten labels it refuses
+to give a verdict at all, because a high rate over three items is noise. An
+unvalidated judge produces numbers that feel rigorous and mean nothing, and this
+is the step that usually gets skipped.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -220,11 +227,27 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-124 tests covering the routing table, the revision loop, budget exhaustion,
+130 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
 retries, crash recovery, checkpoint resume, eval metrics, and the judge's
 bias controls — all offline. One test spawns two real subprocesses to prove the
 queue coordinates across processes.
+
+## Validating the judge
+
+The LLM judge scores report quality, but nothing makes it right — so it is
+checked against you before its numbers are used:
+
+```bash
+mas-eval --smoke --judge          # run twice, so there are two versions to compare
+mas-label build                   # pair them up
+mas-label                         # you pick the better one, blind
+mas-label score                   # replay the judge, report agreement
+```
+
+You are never shown which report came from which run, and A/B order is shuffled
+— a label that is not blind measures nothing. Below ten labels `mas-label score`
+reports "insufficient labels to say" rather than a flattering percentage.
 
 ## Layout
 
@@ -248,11 +271,13 @@ src/mas/
     search.py           DuckDuckGo backend + null backend
   evals/
     metrics.py          deterministic scores from a finished state
+    label.py            human label collection and judge agreement
     seeded.py           planted-defect probes + clean control
     judge.py            LLM-as-judge with position/verbosity bias controls
     cases.py            the case set, spanning evidence coverage
     runner.py           suite execution, baselines, diffing
     cli.py              `mas-eval` entry point
+    label_cli.py        `mas-label` entry point
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
@@ -275,9 +300,10 @@ tests/
   test_period.py        period validation, fiscal hints, trace accuracy
 ```
 
-Three commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
-worker that writes sections from the queue, and **`mas-eval`** scores the
-pipeline against a stored baseline.
+Four commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+worker that writes sections from the queue, **`mas-eval`** scores the pipeline
+against a stored baseline, and **`mas-label`** collects human labels to validate
+the judge.
 
 ## Cost note
 

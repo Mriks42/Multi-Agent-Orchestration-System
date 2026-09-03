@@ -169,3 +169,87 @@ def test_agreement_verdict_thresholds():
 
 def test_agreement_with_no_labels_does_not_divide_by_zero():
     assert Agreement().rate == 0.0
+
+
+# ------------------------------------------------------------ human labelling
+
+
+def test_pairs_are_built_per_company_across_runs():
+    from mas.evals.label import pairs_from_runs
+
+    runs = [
+        {"label": "run1", "drafts": {"NVIDIA Q4 2025": "draft one", "Shopify Q1 2025": "s1"}},
+        {"label": "run2", "drafts": {"NVIDIA Q4 2025": "draft two", "Shopify Q1 2025": "s2"}},
+    ]
+    pairs = pairs_from_runs(runs)
+
+    assert len(pairs) == 2, "one pair per company"
+    assert {p.company for p in pairs} == {"NVIDIA", "Shopify"}
+    assert all({p.a, p.b} for p in pairs)
+
+
+def test_pair_order_is_shuffled_so_the_newer_run_is_not_always_first():
+    """If the human always sees the new version as A, the label is not blind."""
+    from mas.evals.label import pairs_from_runs
+
+    runs = [
+        {"label": "old", "drafts": {f"C{i} Q1 2025": "OLD" for i in range(30)}},
+        {"label": "new", "drafts": {f"C{i} Q1 2025": "NEW" for i in range(30)}},
+    ]
+    firsts = [p.a for p in pairs_from_runs(runs, seed=7)]
+    assert "OLD" in firsts and "NEW" in firsts, "both orderings should appear"
+
+
+def test_pairs_skip_companies_with_an_empty_draft():
+    from mas.evals.label import pairs_from_runs
+
+    runs = [
+        {"label": "run1", "drafts": {"A Q1 2025": "", "B Q1 2025": "text"}},
+        {"label": "run2", "drafts": {"A Q1 2025": "text", "B Q1 2025": "text"}},
+    ]
+    assert [p.company for p in pairs_from_runs(runs)] == ["B"]
+
+
+def test_labels_round_trip_through_disk(tmp_path):
+    from mas.evals.label import LabelSet, Pair
+
+    labels = LabelSet(pairs=[
+        Pair(item="x", company="A", quarter="Q1 2025", a="1", b="2", human="A"),
+        Pair(item="y", company="B", quarter="Q1 2025", a="1", b="2"),
+    ])
+    path = labels.save(tmp_path / "labels.json")
+
+    reloaded = LabelSet.load(path)
+    assert len(reloaded.pairs) == 2
+    assert len(reloaded.labelled) == 1, "an unlabelled pair stays unlabelled"
+    assert reloaded.human_labels() == {"x": "A"}
+
+
+def test_loading_a_missing_label_file_gives_an_empty_set(tmp_path):
+    from mas.evals.label import LabelSet
+
+    assert LabelSet.load(tmp_path / "nope.json").pairs == []
+
+
+def test_score_against_judge_only_replays_labelled_pairs():
+    from mas.evals.label import LabelSet, Pair, score_against_judge
+
+    seen = []
+
+    def handler(schema, messages, model):
+        seen.append(1)
+        return Verdict(winner="A", reason="r")
+
+    model = FakeChatModel(handlers={"Verdict": handler})
+    deps = make_deps(model)
+    deps.judge_llm = model
+
+    labels = LabelSet(pairs=[
+        Pair(item="x", company="A", quarter="Q1 2025", a="1", b="2", human="A"),
+        Pair(item="unlabelled", company="B", quarter="Q1 2025", a="1", b="2"),
+    ])
+    result, judge_labels = score_against_judge(deps, labels)
+
+    assert len(seen) == 2, "one labelled pair, judged in both orderings"
+    assert set(judge_labels) == {"x"}
+    assert result.n == 1
