@@ -92,9 +92,14 @@ def _render(outline, sections: dict[str, str], findings) -> str:
             "source.** Every figure is model recollection and must be verified before use."
         )
     else:
+        unsourced = total - sourced
         parts.append(
             f"{sourced} of {total} findings are backed by a retrieved source; "
-            f"{total - sourced} rest on model recollection and need verification."
+            + (
+                "1 rests on model recollection and needs verification."
+                if unsourced == 1
+                else f"{unsourced} rest on model recollection and need verification."
+            )
         )
     return "\n".join(parts).strip() + "\n"
 

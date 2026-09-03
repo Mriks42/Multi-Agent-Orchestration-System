@@ -38,7 +38,13 @@ def test_fully_unsourced_report_is_labelled_unverified(sample_outline):
 def test_partly_sourced_report_reports_the_split(sample_outline):
     draft = _draft([SOURCED, UNSOURCED, UNSOURCED], sample_outline)
     assert "1 of 3 findings are backed by a retrieved source" in draft
-    assert "2 rest on model recollection" in draft
+    assert "2 rest on model recollection and need verification" in draft
+
+
+def test_single_unsourced_finding_reads_as_singular(sample_outline):
+    """The footer appears in every report; "1 rest on" reads as a bug to a reader."""
+    draft = _draft([SOURCED, SOURCED, UNSOURCED], sample_outline)
+    assert "1 rests on model recollection and needs verification" in draft
 
 
 def test_report_with_no_findings_says_so(sample_outline):
