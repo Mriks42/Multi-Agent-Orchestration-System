@@ -16,6 +16,10 @@ merge through a reducer on `sections`. Measured on a 7-section report: **45s
 sequential → 24s concurrent (1.9x)**. Not more, because research, planning and
 review remain sequential — only the drafting phase parallelises.
 
+With `--distributed`, that same fan-out dispatches to **separate worker
+processes** through a shared queue instead of threads — see
+[Running it distributed](#running-it-distributed).
+
 | Agent | Responsibility |
 | --- | --- |
 | **Research Agent** | Plans search queries, runs them, distils hits into `Finding`s tied to their sources |
@@ -46,6 +50,38 @@ draft model gpt-4o-mini | review model gpt-4o | up to 2 revision(s)
   OK Writer Agent — pass 2, 2 section(s) revised
   OK Reviewer Agent — approved (0 issue(s), 0 unsupported)
 ```
+
+## Running it distributed
+
+Section writing can run in separate worker processes instead of threads. No
+server required — the queue is a SQLite file, so this works on one laptop or
+across machines sharing a path.
+
+```bash
+# terminal 1 and 2 — as many workers as you like
+mas-worker --queue mas-queue.db
+
+# terminal 3
+mas --company "Datadog" --quarter "Q4 2025" --distributed --queue mas-queue.db
+```
+
+Each worker logs what it claims, so you can watch a report get split up:
+
+```
+worker-A: claimed 'Financial Performance Analysis'
+worker-B: claimed 'Executive Summary'
+worker-A: claimed 'Growth Drivers'
+worker-B: claimed 'Customer Metrics and Growth'
+```
+
+**To see the fault tolerance**, kill a worker (`Ctrl+C`, or `taskkill /F /IM
+mas-worker.exe`) while it holds a section. Its lease stops being renewed, the
+task returns to the queue, and another worker picks it up — the report still
+completes. With no worker left running, the orchestrator waits out
+`task_timeout` and exits with a clear error rather than hanging.
+
+Redis is the natural backend for real deployment; `Broker` is a protocol, so it
+is a drop-in alongside the SQLite one.
 
 ### Useful flags
 
@@ -100,6 +136,21 @@ property that makes revisions surgical. Research queries run through a thread
 pool, collected in query order so source indices, and therefore every citation,
 stay stable across runs.
 
+**Distribution is a lease, not a handover.** The defining problem of
+distributed work is a worker dying while holding a task, so `claim()` leases
+rather than hands over: a worker that stops renewing loses the task and it
+returns to the queue ([broker.py](src/mas/distributed/broker.py)). On top of
+that sit retries with attempt limits, idempotent completion so a late result
+from a reclaimed worker cannot overwrite the real one, and lease renewal during
+LLM calls so a slow call is not mistaken for a dead process. `SqliteBroker` gets
+atomic claims from WAL mode plus `BEGIN IMMEDIATE` — without the immediate
+transaction, two workers can read the same pending row and both claim it.
+
+**One graph, two topologies.** With a broker, sections dispatch to worker
+processes; without one, they fan out in-process. Both write an identical
+`sections` update, so every downstream node is unchanged by the choice — and a
+test asserts both paths produce byte-identical reports.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -110,9 +161,10 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-35 tests covering the routing table, the revision loop, budget exhaustion,
-citation validation, provenance labelling, fan-out dispatch, and the full graph
-end to end — all offline.
+54 tests covering the routing table, the revision loop, budget exhaustion,
+citation validation, provenance labelling, fan-out dispatch, broker leases and
+retries, crash recovery, and the full graph end to end — all offline. One test
+spawns two real subprocesses to prove the queue coordinates across processes.
 
 ## Layout
 
@@ -126,6 +178,7 @@ src/mas/
   cli.py          command line entry point
   agents/         research, planning, writer (plan/write/assemble), reviewer
   tools/search.py DuckDuckGo backend + null backend
+  distributed/    broker protocol, SQLite queue, worker process
 ```
 
 ## Cost note
