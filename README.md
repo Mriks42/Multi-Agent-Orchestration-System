@@ -4,10 +4,17 @@ Four specialised agents collaborate to produce a market research report. Built o
 [LangGraph](https://langchain-ai.github.io/langgraph/) with OpenAI models.
 
 ```
-START ──▶ research ──▶ planning ──▶ writer ──▶ reviewer ──▶ END
-                                      ▲            │
-                                      └── revise ──┘
+                            ┌──▶ write_section ──┐
+                            │                    │
+START ──▶ research ──▶ planning ──▶ write_section ──▶ assemble ──▶ reviewer ──▶ END
+                            │                    │       ▲             │
+                            └──▶ write_section ──┘       └── revise ───┘
 ```
+
+Sections are independent LLM calls, so they fan out and run concurrently, then
+merge through a reducer on `sections`. Measured on a 7-section report: **45s
+sequential → 24s concurrent (1.9x)**. Not more, because research, planning and
+review remain sequential — only the drafting phase parallelises.
 
 | Agent | Responsibility |
 | --- | --- |
@@ -64,16 +71,17 @@ real footnote. The Reviewer then gets those findings as its *only* ground truth,
 which is what makes fact-checking mean something concrete rather than a vibe check.
 
 **The loop is bounded and the exit condition is enforced.** `route_after_review`
-([graph.py](src/mas/graph.py#L31)) sends an unapproved draft back to the Writer
+([graph.py](src/mas/graph.py#L50)) sends an unapproved draft back to the Writer
 until `max_revisions` is hit, then publishes with the open issues listed. The
 Reviewer's own `approved` flag drives that exit, so the node overrides an
 approval that contradicts its own blocker issues rather than trusting the model
 to be self-consistent.
 
-**Revisions are surgical.** The Writer rewrites only sections with an issue
-naming them (plus any report-wide issue naming none), so an approved section is
-never destabilised by an unrelated fix — and a revision pass costs a fraction of
-a full redraft.
+**Revisions are surgical.** `plan_sections` dispatches only the sections with
+an issue naming them (plus any report-wide issue naming none). An approved
+section is never redrafted — it survives because the `sections` reducer merges
+branches rather than replacing the map, so a section nobody dispatched simply
+stays. A revision pass costs a fraction of a full redraft.
 
 **Recollection is never laundered into fact.** This is the failure mode the
 architecture invites: the Reviewer fact-checks the draft against the *findings*,
@@ -85,6 +93,13 @@ $500 billion") instead of asserting them, the Reviewer treats a flatly stated
 unsourced figure as a blocker, and every report carries a Provenance footer
 counting what is actually backed by a source.
 
+**Concurrency is a reducer, not a lock.** Parallel `write_section` branches
+each return a single-key dict, and `merge_sections` combines them. No branch can
+see or clobber another's work, so there is nothing to synchronise — the same
+property that makes revisions surgical. Research queries run through a thread
+pool, collected in query order so source indices, and therefore every citation,
+stay stable across runs.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -95,9 +110,9 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-28 tests covering the routing table, the revision loop, budget exhaustion,
-citation validation, provenance labelling, and the full graph end to end — all
-offline.
+35 tests covering the routing table, the revision loop, budget exhaustion,
+citation validation, provenance labelling, fan-out dispatch, and the full graph
+end to end — all offline.
 
 ## Layout
 
@@ -109,13 +124,14 @@ src/mas/
   config.py       env-backed settings
   llm.py          model factory (the only place OpenAI is constructed)
   cli.py          command line entry point
-  agents/         research, planning, writer, reviewer
+  agents/         research, planning, writer (plan/write/assemble), reviewer
   tools/search.py DuckDuckGo backend + null backend
 ```
 
 ## Cost note
 
 A default run is roughly 15–25 model calls: research (2) + planning (1) +
-writer (one per section, per pass) + reviewer (one per pass). Drafting uses the
-cheaper model and only review uses the stronger one; `--no-search` and
+writer (one per section, per pass) + reviewer (one per pass). Concurrency cuts
+wall-clock time, not cost — the same calls are made, just at once. Drafting uses
+the cheaper model and only review uses the stronger one; `--no-search` and
 `--max-revisions 1` cut a run further.
