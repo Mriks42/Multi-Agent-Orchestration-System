@@ -29,16 +29,22 @@ the repo, so the key must be added by hand on each machine.
 
 ## Where things stand
 
-18 commits, 130 tests passing, everything pushed. The pipeline works end to end
+19 commits, 130 tests passing, everything pushed. The pipeline works end to end
 against the live API, and the distributed, resume and eval paths have all been
 verified live rather than only in tests.
 
 ## Next steps, in priority order
 
-1. **Validate the LLM judge.** `mas-label` exists and works, but only 2 pairs
-   are labelled and the threshold for a meaningful number is 10. Needs either
-   ~5 more `mas-eval --smoke --judge` runs or 2 full-suite runs. Until then the
-   judge's scores should not be quoted.
+Ask which of these to take up rather than starting one unprompted — they differ
+a lot in cost and in how much of the user's own time they need. Item 1 in
+particular cannot be done without them.
+
+1. **Validate the LLM judge.** `mas-label` works and 2 pairs are built, but
+   **none are labelled yet** — labelling is a human judgement the user has to
+   make, by running `mas-label` and picking the better report in each pair. Ten
+   labels is the threshold for a meaningful number, so this also needs ~5 more
+   `mas-eval --smoke --judge` runs or 2 full-suite runs to generate enough
+   pairs. Until it is done, the judge's scores should not be quoted.
 2. **Cost and token tracking per agent.** Nothing measures spend. "The reviewer
    is 60% of cost" is the kind of concrete claim that gets asked about.
 3. **A web API and minimal UI.** The project is CLI-only, so nobody who will not
