@@ -1,0 +1,133 @@
+{
+  "label": "20260903T021928Z",
+  "model": "gpt-4o-mini",
+  "reviewer_model": "gpt-4o",
+  "cases": [
+    {
+      "company": "NVIDIA",
+      "quarter": "Q4 2025",
+      "sourced_finding_rate": 1.0,
+      "orphan_citation_count": 0,
+      "unattributed_figure_count": 4,
+      "provenance_footer": true,
+      "citation_count": 41,
+      "cited_section_rate": 1.0,
+      "distinct_sources_cited": 8,
+      "approved": false,
+      "revisions_used": 1,
+      "open_issue_count": 2,
+      "blocker_count": 2,
+      "section_count": 7,
+      "word_count": 1519,
+      "duration_s": 23.6,
+      "error": "",
+      "extra": {
+        "coverage": "high"
+      }
+    },
+    {
+      "company": "Stripe",
+      "quarter": "Q4 2025",
+      "sourced_finding_rate": 1.0,
+      "orphan_citation_count": 0,
+      "unattributed_figure_count": 2,
+      "provenance_footer": true,
+      "citation_count": 18,
+      "cited_section_rate": 0.667,
+      "distinct_sources_cited": 7,
+      "approved": false,
+      "revisions_used": 1,
+      "open_issue_count": 2,
+      "blocker_count": 2,
+      "section_count": 6,
+      "word_count": 1216,
+      "duration_s": 18.5,
+      "error": "",
+      "extra": {
+        "coverage": "low"
+      }
+    }
+  ],
+  "summary": {
+    "runs": 2,
+    "succeeded": 2,
+    "failed": 0,
+    "failures": [],
+    "sourced_finding_rate": 1.0,
+    "cited_section_rate": 0.834,
+    "citation_count": 29.5,
+    "unattributed_figure_count": 3.0,
+    "orphan_citation_count": 0,
+    "approval_rate": 0.0,
+    "revisions_used": 1.0,
+    "word_count": 1367.5,
+    "duration_s": 21.05
+  },
+  "by_coverage": {
+    "high": {
+      "cases": 1,
+      "sourced_finding_rate": 1.0,
+      "unattributed_figure_count": 4.0,
+      "citation_count": 41.0
+    },
+    "low": {
+      "cases": 1,
+      "sourced_finding_rate": 1.0,
+      "unattributed_figure_count": 2.0,
+      "citation_count": 18.0
+    }
+  },
+  "total_duration_s": 42.1,
+  "probes": [
+    {
+      "name": "clean_control",
+      "should_flag": false,
+      "flagged": false,
+      "what": "a correct draft \u2014 flagging this is a false positive",
+      "issues": 0,
+      "error": ""
+    },
+    {
+      "name": "fabricated_figure",
+      "should_flag": true,
+      "flagged": true,
+      "what": "a figure no finding supports",
+      "issues": 1,
+      "error": ""
+    },
+    {
+      "name": "contradicted_finding",
+      "should_flag": true,
+      "flagged": true,
+      "what": "a figure contradicting its own cited source",
+      "issues": 1,
+      "error": ""
+    },
+    {
+      "name": "unsourced_stated_as_fact",
+      "should_flag": true,
+      "flagged": true,
+      "what": "an UNSOURCED finding asserted as established fact",
+      "issues": 1,
+      "error": ""
+    },
+    {
+      "name": "orphan_citation",
+      "should_flag": true,
+      "flagged": true,
+      "what": "a citation pointing at a source that does not exist",
+      "issues": 1,
+      "error": ""
+    }
+  ],
+  "probe_summary": {
+    "probes": 5,
+    "planted": 4,
+    "caught": 4,
+    "catch_rate": 1.0,
+    "clean_controls": 1,
+    "false_positives": 0,
+    "missed": [],
+    "errors": []
+  }
+}
