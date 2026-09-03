@@ -28,7 +28,11 @@ class MissingAPIKey(RuntimeError):
 
 
 def build_chat_model(settings: Settings, role: str = "default") -> ChatModel:
-    """Return a chat model for `role` ('reviewer' gets the stronger model)."""
+    """Return a chat model for `role`.
+
+    'reviewer' gets the stronger model; 'judge' gets a pinned snapshot at
+    temperature 0 so eval scores move only when the reports do.
+    """
     if not os.getenv("OPENAI_API_KEY"):
         raise MissingAPIKey(
             "OPENAI_API_KEY is not set. Copy .env.example to .env and add your key."
@@ -36,9 +40,15 @@ def build_chat_model(settings: Settings, role: str = "default") -> ChatModel:
 
     from langchain_openai import ChatOpenAI  # imported lazily: keeps tests import-light
 
+    model, temperature = settings.model, settings.temperature
+    if role == "reviewer":
+        model = settings.reviewer_model
+    elif role == "judge":
+        model, temperature = settings.judge_model, settings.judge_temperature
+
     return ChatOpenAI(
-        model=settings.reviewer_model if role == "reviewer" else settings.model,
-        temperature=settings.temperature,
+        model=model,
+        temperature=temperature,
         timeout=settings.request_timeout,
         max_retries=settings.max_retries,
     )

@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     reviewer_model: str = "gpt-4o"
     temperature: float = 0.3
 
+    judge_model: str = "gpt-4o-2024-11-20"
+    """Pinned to an explicit snapshot: a judge that changes under you turns a
+    prompt regression into an unattributable score move."""
+
+    judge_temperature: float = 0.0
+
     max_revisions: int = 2
     """How many times the Writer may be sent back by the Reviewer before we ship."""
 

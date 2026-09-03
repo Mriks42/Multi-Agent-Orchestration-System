@@ -25,8 +25,14 @@ from .seeded import run_probes, score_probes
 log = logging.getLogger(__name__)
 
 
-def run_case(deps: Deps, case: Case, max_revisions: int | None = None) -> Metrics:
-    """Run one report and score it. Failures become a scored row, not a crash."""
+def run_case(
+    deps: Deps, case: Case, max_revisions: int | None = None, judge: bool = False
+) -> tuple[Metrics, str]:
+    """Run one report and score it. Failures become a scored row, not a crash.
+
+    Returns the metrics and the draft, so a later run can be compared against
+    this one pairwise.
+    """
     started = time.time()
     try:
         state = run_report(
@@ -43,11 +49,27 @@ def run_case(deps: Deps, case: Case, max_revisions: int | None = None) -> Metric
             quarter=case.quarter,
             duration_s=round(time.time() - started, 1),
             error=f"{type(exc).__name__}: {exc}",
-        )
+        ), ""
 
     metrics = score_run(state, duration_s=time.time() - started)
     metrics.extra["coverage"] = case.coverage
-    return metrics
+
+    if judge:
+        from .judge import score_report
+
+        try:
+            verdict = score_report(deps, state)
+            metrics.extra["judge"] = {
+                "overall": verdict.overall,
+                "mean": verdict.mean,
+                **verdict.by_criterion(),
+            }
+        except Exception as exc:
+            # A judge failure must not invalidate a run's real metrics.
+            log.warning("judge failed for %s: %s", case.label, exc)
+            metrics.extra["judge_error"] = str(exc)
+
+    return metrics, state.get("draft", "")
 
 
 def run_suite(
@@ -55,15 +77,18 @@ def run_suite(
     cases: list[Case],
     max_revisions: int | None = None,
     with_probes: bool = True,
+    judge: bool = False,
     on_case: Callable[[Case, Metrics], None] | None = None,
 ) -> dict:
     """Run every case plus the seeded-error probes; return the full result."""
     started = time.time()
     runs: list[Metrics] = []
 
+    drafts: dict[str, str] = {}
     for case in cases:
-        metrics = run_case(deps, case, max_revisions=max_revisions)
+        metrics, draft = run_case(deps, case, max_revisions=max_revisions, judge=judge)
         runs.append(metrics)
+        drafts[case.label] = draft
         if on_case:
             on_case(case, metrics)
 
@@ -75,7 +100,11 @@ def run_suite(
         "summary": aggregate(runs),
         "by_coverage": _by_coverage(runs),
         "total_duration_s": round(time.time() - started, 1),
+        "drafts": drafts,
     }
+
+    if judge:
+        result["judge_summary"] = _judge_summary(runs)
 
     if with_probes:
         probes = run_probes(deps)
@@ -83,6 +112,20 @@ def run_suite(
         result["probe_summary"] = score_probes(probes)
 
     return result
+
+
+def _judge_summary(runs: list[Metrics]) -> dict:
+    """Average rubric scores across runs the judge actually scored."""
+    scored = [m.extra["judge"] for m in runs if "judge" in m.extra]
+    if not scored:
+        return {"scored": 0}
+
+    keys = [k for k in scored[0] if k != "mean"]
+    return {
+        "scored": len(scored),
+        "failed": sum(1 for m in runs if "judge_error" in m.extra),
+        **{k: round(sum(s[k] for s in scored) / len(scored), 2) for k in keys},
+    }
 
 
 def _by_coverage(runs: list[Metrics]) -> dict:

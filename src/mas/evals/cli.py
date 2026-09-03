@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-search", action="store_true", help="Disable web search")
     parser.add_argument("--out", type=Path, default=Path("evals"), help="Where results are stored")
     parser.add_argument("--model", help="Override the drafting model")
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help="Also score each report with the pinned LLM judge (1 extra call per case)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     return parser
 
@@ -131,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     baseline = load_baseline(args.out)
     result = run_suite(
         deps, cases, max_revisions=args.max_revisions,
-        with_probes=not args.no_probes, on_case=progress,
+        with_probes=not args.no_probes, judge=args.judge, on_case=progress,
     )
 
     console.print()
@@ -160,6 +165,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         if ps["missed"]:
             console.print(f"  [yellow]missed:[/yellow] {', '.join(ps['missed'])}")
+
+    if "judge_summary" in result:
+        js = result["judge_summary"]
+        table = Table(title=f"LLM judge ({settings.judge_model}, temp 0)")
+        table.add_column("criterion")
+        table.add_column("mean 1-5", justify="right")
+        for key, value in js.items():
+            if key not in ("scored", "failed"):
+                table.add_row(key, str(value))
+        console.print()
+        console.print(table)
+        console.print(
+            f"[dim]{js['scored']} report(s) scored"
+            + (f", {js['failed']} judge failure(s)" if js.get("failed") else "")
+            + " — absolute scores are directional; trust pairwise deltas.[/dim]"
+        )
 
     rows = compare(result, baseline)
     if rows:
