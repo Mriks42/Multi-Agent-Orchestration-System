@@ -34,22 +34,26 @@ python -m venv .venv && .venv/Scripts/activate     # Windows; use bin/activate e
 pip install -e .
 cp .env.example .env                                # then add your OPENAI_API_KEY
 
-mas --company "Company X" --quarter "Q4 2025"
+mas --company "Shopify" --quarter "Q1 2025"
 ```
 
-The report is written to `reports/company-x-q4-2025-<date>.md`.
+The report is written to `reports/shopify-q1-2025-<date>.md`. Real output:
 
 ```
-Market research report: Company X — Q4 2025
+Market research report: Shopify — Q1 2025
 draft model gpt-4o-mini | review model gpt-4o | up to 2 revision(s)
 
-  OK Research Agent — 14 sources -> 11 findings
-  OK Planning Agent — Executive Summary | Market Context | ...
-  OK Writer Agent — pass 1, 6 section(s) drafted
-  OK Reviewer Agent — changes requested (3 issue(s), 2 unsupported)
-  OK Writer Agent — pass 2, 2 section(s) revised
+  OK Research Agent — 19 sources -> 8 findings
+  OK Planning Agent — Executive Summary | Financial Performance | Market ...
+  OK Writer Agent — pass 1, 7 section(s) drafted
+  OK Reviewer Agent — changes requested (1 issue(s), 1 unsupported)
+  OK Writer Agent — pass 2, 1 of 7 section(s) revised
   OK Reviewer Agent — approved (0 issue(s), 0 unsupported)
 ```
+
+**Use a real, publicly reporting company.** A fictional name gives the Research
+Agent nothing to find, and the model will invent a company from scratch — the
+Provenance footer then reports that nothing is sourced.
 
 ## Running it distributed
 
@@ -282,3 +286,7 @@ writer (one per section, per pass) + reviewer (one per pass). Concurrency cuts
 wall-clock time, not cost — the same calls are made, just at once. Drafting uses
 the cheaper model and only review uses the stronger one; `--no-search` and
 `--max-revisions 1` cut a run further.
+
+`mas-eval` costs more: the full 12-case suite is ~12 reports plus 5 probe calls,
+so start with `--probes-only` (5 calls) or `--smoke` (2 cases). `--judge` adds
+one call per case.
