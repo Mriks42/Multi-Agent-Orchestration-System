@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e .
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 130 tests, all offline — no API key needed
+pytest                          # 132 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Four commands: `mas`, `mas-worker`, `mas-eval`,
@@ -97,6 +97,10 @@ Do not "fix" these without discussing; each was a considered trade-off.
   never for evaluating quality.
 - **Heredocs mangle `\n` inside Python string literals.** Several edits broke
   this way; use the Edit tool for anything containing escape sequences.
+- **Label with `mas-label`, not by editing `evals/labels.json`.** Hand-editing
+  works and the tool reads it, but opening the file puts both drafts in front of
+  you at once, which makes the judgement less independent. Rebuilding pairs also
+  reassigns ids, so labels written against an older id format are dropped.
 
 ## Conventions
 
