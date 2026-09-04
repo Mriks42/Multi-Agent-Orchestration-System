@@ -302,3 +302,49 @@ def test_load_baseline_falls_back_to_the_newest_when_nothing_matches(tmp_path):
         _json.dumps(_run("001", ["NVIDIA"])), encoding="utf-8")
 
     assert load_baseline(tmp_path, like=[Case("Braze")])["label"] == "001"
+
+
+# ------------------------------------------------------------- ablation
+
+
+def _ablation(baseline_vals, bad_vals):
+    from mas.evals.ablate import AblationRun, Variant
+    from mas.evals.metrics import Metrics
+
+    def build(name, vals):
+        judge = {k: v for k, v in vals.items() if k in ("overall", "grounding")}
+        metrics = Metrics(company="X", **{k: v for k, v in vals.items() if k not in judge})
+        return AblationRun(variant=Variant(name=name, why=""), metrics=metrics, judge=judge)
+
+    return [build("baseline", baseline_vals), build("no-search", bad_vals)]
+
+
+def test_a_measure_that_drops_on_the_fabricated_report_is_correct():
+    from mas.evals.ablate import discriminates
+
+    runs = _ablation({"citation_count": 47}, {"citation_count": 0})
+    assert discriminates(runs, "citation_count")["verdict"] == "correct"
+
+
+def test_a_measure_that_does_not_move_is_blind():
+    from mas.evals.ablate import discriminates
+
+    runs = _ablation({"grounding": 5}, {"grounding": 5})
+    assert discriminates(runs, "grounding")["verdict"] == "blind"
+
+
+def test_a_measure_that_rates_the_fabrication_higher_is_inverted():
+    """The dangerous case: a blind measure says nothing, an inverted one lies."""
+    from mas.evals.ablate import discriminates
+
+    runs = _ablation({"overall": 4}, {"overall": 5})
+    result = discriminates(runs, "overall")
+    assert result["verdict"] == "inverted"
+    assert result["separates"] is False, "moving the wrong way is not success"
+
+
+def test_a_metric_where_higher_means_worse_is_read_the_right_way_round():
+    from mas.evals.ablate import discriminates
+
+    runs = _ablation({"unattributed_figure_count": 2}, {"unattributed_figure_count": 4})
+    assert discriminates(runs, "unattributed_figure_count")["verdict"] == "correct"

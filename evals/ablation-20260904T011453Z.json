@@ -1,0 +1,139 @@
+{
+  "company": "NVIDIA",
+  "quarter": "Q4 2025",
+  "label": "20260904T011453Z",
+  "runs": [
+    {
+      "variant": "baseline",
+      "why": "current defaults",
+      "expect": "the reference every other variant is read against",
+      "metrics": {
+        "company": "NVIDIA",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 1.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 2,
+        "provenance_footer": true,
+        "citation_count": 47,
+        "cited_section_rate": 1.0,
+        "distinct_sources_cited": 11,
+        "approved": false,
+        "revisions_used": 1,
+        "open_issue_count": 3,
+        "blocker_count": 3,
+        "section_count": 7,
+        "word_count": 1635,
+        "duration_s": 29.2,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 4,
+        "grounding": 5,
+        "purpose_fit": 4,
+        "non_redundancy": 3,
+        "specificity": 5,
+        "usefulness": 4
+      }
+    },
+    {
+      "variant": "no-search",
+      "why": "web search disabled; the model works from recollection alone",
+      "expect": "MUCH worse \u2014 no sources, so every figure is unverified. A measure that misses this is not measuring quality.",
+      "metrics": {
+        "company": "NVIDIA",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 0.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 4,
+        "provenance_footer": true,
+        "citation_count": 0,
+        "cited_section_rate": 0.0,
+        "distinct_sources_cited": 0,
+        "approved": false,
+        "revisions_used": 1,
+        "open_issue_count": 15,
+        "blocker_count": 15,
+        "section_count": 7,
+        "word_count": 1068,
+        "duration_s": 27.9,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 5,
+        "grounding": 5,
+        "purpose_fit": 5,
+        "non_redundancy": 4,
+        "specificity": 5,
+        "usefulness": 5
+      }
+    },
+    {
+      "variant": "strong-writer",
+      "why": "gpt-4o drafts instead of gpt-4o-mini, at roughly 15x the token cost",
+      "expect": "better, if paying for the stronger model is worth it",
+      "metrics": {
+        "company": "NVIDIA",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 1.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 4,
+        "provenance_footer": true,
+        "citation_count": 37,
+        "cited_section_rate": 1.0,
+        "distinct_sources_cited": 10,
+        "approved": false,
+        "revisions_used": 1,
+        "open_issue_count": 1,
+        "blocker_count": 1,
+        "section_count": 7,
+        "word_count": 1417,
+        "duration_s": 25.5,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 4,
+        "grounding": 5,
+        "purpose_fit": 4,
+        "non_redundancy": 3,
+        "specificity": 5,
+        "usefulness": 4
+      }
+    },
+    {
+      "variant": "more-revisions",
+      "why": "three reviewer passes instead of one",
+      "expect": "fewer open issues; possibly better grounding",
+      "metrics": {
+        "company": "NVIDIA",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 1.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 2,
+        "provenance_footer": true,
+        "citation_count": 38,
+        "cited_section_rate": 1.0,
+        "distinct_sources_cited": 12,
+        "approved": false,
+        "revisions_used": 3,
+        "open_issue_count": 2,
+        "blocker_count": 2,
+        "section_count": 7,
+        "word_count": 1445,
+        "duration_s": 38.7,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 4,
+        "grounding": 5,
+        "purpose_fit": 4,
+        "non_redundancy": 3,
+        "specificity": 5,
+        "usefulness": 4
+      }
+    }
+  ]
+}

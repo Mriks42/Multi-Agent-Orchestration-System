@@ -23,6 +23,7 @@ ENTRY_POINTS = [
     ("mas.distributed.cli", "mas-worker"),
     ("mas.evals.cli", "mas-eval"),
     ("mas.evals.label_cli", "mas-label"),
+    ("mas.evals.ablate_cli", "mas-ablate"),
 ]
 
 
