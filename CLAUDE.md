@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e .
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 211 tests, all offline — no API key needed
+pytest                          # 217 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -30,7 +30,7 @@ the repo, so the key must be added by hand on each machine.
 
 ## Where things stand
 
-34 commits, 211 tests passing. The pipeline works end to end against the live
+41 commits, 217 tests passing. The pipeline works end to end against the live
 API, and the distributed, resume, eval and ablation paths have all been verified
 live rather than only in tests.
 
@@ -39,11 +39,8 @@ live rather than only in tests.
 Ask which of these to take up rather than starting one unprompted -- they differ
 a lot in cost and in how much of the user's own time they need.
 
-1. **Deploy the UI.** `mas-serve` works locally, so the project is still only
-   visible to someone who clones it. A hosted link is the binding constraint on
-   its value. Note the job store is in-memory and single-process, which is fine
-   for one instance; and a public URL spends the user's OpenAI credits, so it
-   needs a rate limit or an access token.
+1. **Deploy the UI.** See "Deployment, as far as it got" below -- the options
+   are worked out and two decisions are outstanding.
 2. **A mechanical figure check.** The writer still invents figures -- a live
    Shopify run with 13 sourced findings and 22 sources produced "GMV increased
    by 38%", which no finding contained. `check_citations` is the proven pattern:
@@ -68,6 +65,48 @@ a lot in cost and in how much of the user's own time they need.
 Not on this list, deliberately: **more replicates so the eval can resolve small
 prompt changes.** It would cost 3x per experiment to detect effects that did not
 matter; the resolution limit is documented instead.
+
+## Deployment, as far as it got
+
+Agreed this is the top priority: `mas-serve` works locally, so the project is
+still only visible to someone willing to clone it, install it and supply an API
+key. A hosted link is what converts the work into something a recruiter can
+click.
+
+**The constraint that rules out serverless.** A report takes 25-40 seconds and
+runs on a background thread with in-memory job state, so Vercel, Netlify and
+Lambda are all out -- request timeouts are shorter than a run, and nothing
+persists between the submit and the first poll. It needs a long-running process.
+
+**Options, with the trade-off that matters:**
+
+| | cost | catch |
+| --- | --- | --- |
+| Hugging Face Spaces | free | no spin-down on CPU basic; AI-native audience |
+| Railway | $5/mo credit | no spin-down while the credit lasts |
+| Render free | free | spins down after 15 min idle, ~50s cold start |
+| Fly.io | small free allowance | more configuration to get right |
+
+Hugging Face Spaces was recommended. Render's free tier is the obvious default,
+but a 50-second cold start is a real problem for a portfolio link: a visitor
+clicks, sees nothing, and closes the tab before the app has started.
+
+**Decision one, outstanding: which platform.**
+
+**Decision two, outstanding: access control.** A public URL lets strangers spend
+the user's OpenAI credits at roughly 25 calls a report. The options put to them,
+undecided:
+
+- an access code shared with recruiters, with a locked page otherwise
+- a rate limit per IP only (open, but evadable and still costs money)
+- a read-only gallery of pre-generated reports (zero risk, but nobody can try
+  their own company)
+- an access code plus a read-only fallback for visitors without it
+
+**Division of labour.** Claude can write the Dockerfile, entry point,
+environment handling and access control. Claude cannot deploy: that needs the
+user's own account and their OpenAI key set as a secret on the platform, which
+is about ten minutes of their clicking once the config exists.
 
 ## Known problems, stated plainly
 
