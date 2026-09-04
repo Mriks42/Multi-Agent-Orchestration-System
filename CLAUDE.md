@@ -58,6 +58,28 @@ particular cannot be done without them.
 5. **Redis broker + Docker Compose.** `Broker` is a protocol, so this is one new
    file plus compose config. Blocked only on Docker not being installed.
 
+## Three prompt experiments that failed
+
+The reviewer repeatedly spends its whole revision budget on claims no finding
+can support: the writer rewords them, the reviewer objects again. Three attempts
+to fix it, measured over the same four companies at `--max-revisions 3`:
+
+| variant | open issues | unattributed | citations |
+| --- | --- | --- | --- |
+| original | 17 | 1.75 | 32.2 |
+| "delete unsupported material" | 7 | 4.25 | 27.0 |
+| the same, plus a hedging carve-out | 9 | 3.50 | 21.8 |
+| reviewer marks each issue delete/revise | 14 | 4.75 | 25.0 |
+
+Every variant traded fabrication-resistance for fewer complaints: fewer
+citations and more figures asserted without attribution. All three were
+reverted. The original prompt scores best on the metrics this project actually
+cares about, and open issues counts reviewer complaints rather than report
+quality.
+
+The honest reading is that the noise exceeds the effects -- see the resolution
+note under Traps. Do not retry this without more replicates per condition.
+
 ## The two findings worth telling people
 
 Both came out of running the thing rather than reading about it, and both are
@@ -130,6 +152,13 @@ Do not "fix" these without discussing; each was a considered trade-off.
   output format changes, since nothing checks those automatically.
 - **`--no-search` produces fully fabricated reports.** Fine for wiring tests,
   never for evaluating quality.
+- **The eval suite cannot resolve small prompt changes.** Four companies, one
+  run each, is enough to detect a fabricated report against a researched one --
+  the gap there is enormous -- and nowhere near enough for a prompt tweak.
+  Datadog's `unattributed_figure_count` swung 2 / 10 / 5 / 11 across four runs
+  of near-identical code. Any effect smaller than that is noise. Before
+  believing a prompt result, replicate it; `evals/revise-*` holds the four runs
+  where this was learned the expensive way.
 - **A measure that moves the wrong way is worse than one that does not move.**
   `mas-ablate` reports correct/blind/inverted for exactly this reason. An
   earlier version called any difference "separates", which scored an inversion

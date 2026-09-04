@@ -83,21 +83,6 @@ class Issue(BaseModel):
     section: str = Field(default="", description="Heading the issue belongs to, if section-specific")
     problem: str
     fix: str = Field(description="Concrete instruction the Writer Agent can act on")
-    remedy: Literal["revise", "delete"] = Field(
-        default="revise",
-        description=(
-            "'delete' when no finding can support the claim, so the only correct fix "
-            "is removing it; 'revise' when rewording, attributing or citing can fix it."
-        ),
-    )
-    """Which kind of fix the writer should apply.
-
-    Without this the writer had to guess, and a model asked to fix a sentence
-    rewords it -- so a claim no finding could support came back reworded and
-    still unsupported, round after round, until the revision budget ran out.
-    Telling the writer to delete freely instead cut open issues but also cut
-    citations and raised unattributed figures; naming the remedy per issue is
-    the narrow version of that fix."""
 
 
 class Review(BaseModel):
