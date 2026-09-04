@@ -152,6 +152,12 @@ Do not "fix" these without discussing; each was a considered trade-off.
   output format changes, since nothing checks those automatically.
 - **`--no-search` produces fully fabricated reports.** Fine for wiring tests,
   never for evaluating quality.
+- **More revisions do not produce better reports.** At `--max-revisions 3` the
+  same four companies finished with *more* open issues than at 1 (17 vs 13),
+  took 50% longer, and were approved exactly as often: never. All four used
+  every revision without converging. Each rewrite is a fresh chance to invent
+  something new, so the loop treadmills rather than converging. Keep the
+  default at 1-2; raising it costs calls and buys nothing measurable.
 - **The eval suite cannot resolve small prompt changes.** Four companies, one
   run each, is enough to detect a fabricated report against a researched one --
   the gap there is enormous -- and nowhere near enough for a prompt tweak.
