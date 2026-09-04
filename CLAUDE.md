@@ -36,27 +36,53 @@ live rather than only in tests.
 
 ## Next steps, in priority order
 
-Ask which of these to take up rather than starting one unprompted — they differ
-a lot in cost and in how much of the user's own time they need. Item 1 in
-particular cannot be done without them.
+Ask which of these to take up rather than starting one unprompted -- they differ
+a lot in cost and in how much of the user's own time they need.
 
-1. **Cost and token tracking per agent.** Nothing measures spend, so nobody
-   can answer "what does a run cost?" -- which came up repeatedly and could
-   only be estimated. Capture usage per response and total it per agent.
-2. **Write up the two findings somewhere a reader will see them** (see below).
-3. **Validate the LLM judge — deferred, and unblocked.** 28 pairs are built and
+1. **Deploy the UI.** `mas-serve` works locally, so the project is still only
+   visible to someone who clones it. A hosted link is the binding constraint on
+   its value. Note the job store is in-memory and single-process, which is fine
+   for one instance; and a public URL spends the user's OpenAI credits, so it
+   needs a rate limit or an access token.
+2. **A mechanical figure check.** The writer still invents figures -- a live
+   Shopify run with 13 sourced findings and 22 sources produced "GMV increased
+   by 38%", which no finding contained. `check_citations` is the proven pattern:
+   deterministic code the model cannot talk itself out of, which took the
+   citation probe from 75% to 100%. Extract numbers from the draft, compare
+   against the findings, flag what appears nowhere. It will false-positive on
+   derived figures ("up 31%" computed from two findings) and format mismatches
+   ("$11.6 billion" vs "$11.6B"), so build the extraction with offline unit
+   tests before wiring it into the reviewer. Expect it to reduce fabrication,
+   not end it.
+3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
+   a run cost?" can only be estimated -- it came up repeatedly.
+4. **Write up the two findings** (see below) somewhere a reader meets them in
+   the first thirty seconds rather than digging them out of the README.
+5. **Validate the LLM judge -- deferred, and unblocked.** 28 pairs are built and
    committed, so no further eval runs are needed. It waits only on the user
-   spending ~20 minutes in `mas-label` picking the better report in each pair;
-   ten labels is the threshold for a meaningful number. Lower priority than it
-   looks: the ablation already validated the judge where it counts, by proving
-   it catches fabrication. This adds a finer check on whether it shares a
-   human's taste. Until it is done, do not quote an agreement figure.
-4. **Deploy the UI somewhere.** `mas-serve` exists and works locally, but the
-   project is still only visible to someone who clones it. A hosted link is
-   what makes it shareable on an application. Note the job store is in-memory
-   and single-process, which is fine for one instance and not for more.
-5. **Redis broker + Docker Compose.** `Broker` is a protocol, so this is one new
+   spending ~20 minutes in `mas-label`. Lower priority than it looks: the
+   ablation already validated the judge where it counts.
+6. **Redis broker + Docker Compose.** `Broker` is a protocol, so this is one new
    file plus compose config. Blocked only on Docker not being installed.
+
+Not on this list, deliberately: **more replicates so the eval can resolve small
+prompt changes.** It would cost 3x per experiment to detect effects that did not
+matter; the resolution limit is documented instead.
+
+## Known problems, stated plainly
+
+- **The writer invents figures, and the system detects rather than prevents
+  it.** This is the project's central unsolved problem. Item 2 above narrows it.
+- **No report has ever been approved** -- 0 of 12 in the full suite, every run.
+  Largely downstream of the above: the reviewer keeps finding invented figures
+  and is right to. Worth knowing that approval also requires no *major* issues,
+  so a single substantive gap blocks a report; that bar is a judgement call
+  rather than a bug.
+- **Severity assignment is inconsistent.** Redundancy has been seen labelled
+  "blocker" when the prompt reserves that for factual errors. A real run,
+  though, produced only genuine fabrications as blockers -- so this is
+  occasional, not systematic. Do not generalise from blocker counts without
+  reading the issue text, which the eval does not currently store.
 
 ## Three prompt experiments that failed
 
