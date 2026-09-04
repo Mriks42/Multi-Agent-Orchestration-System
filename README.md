@@ -280,10 +280,10 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-211 tests covering the routing table, the revision loop, budget exhaustion,
+217 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
-retries, crash recovery, checkpoint resume, eval metrics, and the judge's
-bias controls — all offline. One test spawns two real subprocesses to prove the
+retries, crash recovery, checkpoint resume, eval metrics, the judge's bias
+controls, the HTTP API, and that every command still imports and parses — all offline. One test spawns two real subprocesses to prove the
 queue coordinates across processes.
 
 ## Validating the judge
