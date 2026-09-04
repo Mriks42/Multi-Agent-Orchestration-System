@@ -50,15 +50,54 @@ CRITERIA = {
                   "informed that the company exists.",
 }
 
-SCALE = """Score each criterion 1-5 against these anchors:
+SCALE = """Score each criterion 1-5:
   1 = fails outright
   2 = weak, would need rewriting
   3 = acceptable but unremarkable
   4 = good, minor faults only
-  5 = could go to a client unchanged
+  5 = could go to a client unchanged with nothing you would alter
+
+Use the whole range. Most competent drafts are a 3; 4 is genuinely good and 5
+should be rare. If you find yourself giving the same score to every criterion,
+you are describing your impression of the report rather than scoring the rubric
+-- go back and separate them.
 
 Length is NOT quality. A short report that does its job scores higher than a
 long one that pads. Do not reward volume."""
+
+ANCHORS = """Worked examples, so the numbers mean the same thing each time.
+
+non_redundancy = 2
+  Executive Summary: "Revenue was $2.1B, up 27% year over year [0]."
+  Financial Performance: "Revenue for the quarter was $2.1B, a 27% increase [0]."
+  Outlook: "Following revenue of $2.1B and 27% growth [0], the company..."
+  -> the same figure restated three times as though each were new.
+
+non_redundancy = 3
+  The summary re-states two headline figures that appear later in full, but
+  every other section covers distinct ground.
+
+non_redundancy = 5
+  The summary names what the sections establish and points to them --
+  "margins held despite the pricing pressure described below" -- without
+  repeating any figure the body already gives.
+
+grounding = 2
+  "Revenue was $3.1 billion and margins expanded significantly." Neither
+  figure carries a citation and no finding supports them.
+
+grounding = 5
+  Every figure carries [n]. Where the findings are marked UNSOURCED, the text
+  says "reportedly around $4,000" rather than stating it flatly.
+
+specificity = 2
+  "The company is well positioned in a competitive market and continues to
+  execute against its strategy." True of any company in any quarter.
+
+specificity = 5
+  "Data centre revenue rose 18% sequentially and more than doubled year over
+  year [21], now 88% of total revenue."
+"""
 
 SYSTEM = (
     "You are a demanding editor of market research. You judge against the rubric "
@@ -74,6 +113,8 @@ Rubric:
 {criteria}
 
 {scale}
+
+{anchors}
 
 Score every criterion and give a one-sentence reason for each."""
 
@@ -169,6 +210,7 @@ def score_report(deps: Deps, state) -> JudgeScore:
             draft=_body(state.get("draft", "")),
             criteria=_criteria_block(),
             scale=SCALE,
+            anchors=ANCHORS,
         ),
     )
 
@@ -248,3 +290,48 @@ def agreement(judge_labels: dict[str, str], human_labels: dict[str, str]) -> Agr
                 {"item": item, "judge": judge_labels[item], "human": human}
             )
     return result
+
+
+def rescore_drafts(deps: Deps, run: dict, on_score=None) -> dict:
+    """Re-score a stored run's drafts with the current rubric.
+
+    A rubric change should be testable without regenerating twelve reports:
+    the drafts are already saved, and holding them fixed isolates the judge's
+    behaviour from the pipeline's.
+    """
+    scores: dict[str, dict] = {}
+    for label, draft in (run.get("drafts") or {}).items():
+        if not draft:
+            continue
+        company, _, quarter = label.partition(" ")
+        try:
+            verdict = score_report(
+                deps, {"company": company, "quarter": quarter, "draft": draft}
+            )
+            scores[label] = {"overall": verdict.overall, **verdict.by_criterion()}
+        except Exception as exc:
+            log.warning("rescore failed for %s: %s", label, exc)
+            scores[label] = {"error": f"{type(exc).__name__}: {exc}"}
+        if on_score:
+            on_score(label, scores[label])
+    return scores
+
+
+def spread(scores: dict[str, dict], criterion: str) -> dict:
+    """How much a criterion actually varies across reports.
+
+    A criterion with one distinct value is not measuring anything, however
+    confident its number looks.
+    """
+    values = [s[criterion] for s in scores.values() if criterion in s]
+    if not values:
+        return {"n": 0, "distinct": 0, "values": []}
+    return {
+        "n": len(values),
+        "distinct": len(set(values)),
+        "min": min(values),
+        "max": max(values),
+        "mean": round(sum(values) / len(values), 2),
+        "values": sorted(values),
+        "degenerate": len(set(values)) == 1,
+    }

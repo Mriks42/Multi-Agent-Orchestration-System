@@ -43,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also score each report with the pinned LLM judge (1 extra call per case)",
     )
+    parser.add_argument(
+        "--rescore",
+        type=Path,
+        help="Re-score a stored run's drafts with the current rubric (no new reports)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     return parser
 
@@ -89,6 +94,44 @@ def _diff_table(rows: list[dict]) -> Table:
     return table
 
 
+def _rescore(args, deps) -> int:
+    """Re-score stored drafts, and report whether each criterion actually varies."""
+    import json as _json
+
+    from .judge import CRITERIA, rescore_drafts, spread
+
+    run = _json.loads(args.rescore.read_text(encoding="utf-8"))
+    stored = {c["company"] + " " + c["quarter"]: c["extra"].get("judge", {})
+              for c in run.get("cases", [])}
+
+    console.print(f"[bold]Re-scoring {len(run.get('drafts') or {})} draft(s)[/bold] "
+                  f"from {args.rescore.name} with the current rubric\n")
+
+    def show(label, score):
+        was = stored.get(label, {}).get("non_redundancy", "-")
+        console.print(f"  {label:24} non_redundancy {was} -> {score.get('non_redundancy', '?')}")
+
+    scores = rescore_drafts(deps, run, on_score=show)
+
+    table = Table(title="Does each criterion actually vary?")
+    table.add_column("criterion")
+    table.add_column("distinct", justify="right")
+    table.add_column("range")
+    table.add_column("mean", justify="right")
+    table.add_column("")
+    for name in ("overall", *CRITERIA):
+        s = spread(scores, name)
+        if not s["n"]:
+            continue
+        table.add_row(
+            name, str(s["distinct"]), f"{s['min']}-{s['max']}", str(s["mean"]),
+            "[red]degenerate[/red]" if s["degenerate"] else "[green]varies[/green]",
+        )
+    console.print()
+    console.print(table)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     load_dotenv()
@@ -105,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     except MissingAPIKey as exc:
         console.print(f"[bold red]{exc}[/bold red]")
         return 2
+
+    if args.rescore:
+        return _rescore(args, deps)
 
     if args.probes_only:
         results = run_probes(deps)
