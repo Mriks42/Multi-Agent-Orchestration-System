@@ -208,7 +208,7 @@ function render(job) {
       html += `<div style="margin-top:10px">` +
         job.open_issues.map(i => `<div class="issue">${esc(i)}</div>`).join("") + `</div>`;
     }
-    html += `</div><div class="card"><article>${esc(job.report)}</article></div>`;
+    html += `</div><div class="card"><article>${markdown(job.report)}</article></div>`;
   }
 
   out.innerHTML = html;

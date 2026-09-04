@@ -200,13 +200,23 @@ def test_the_job_store_is_bounded():
 # ------------------------------------------------------------- page rendering
 
 
-def test_the_page_renders_the_report_rather_than_showing_markdown_syntax():
-    """A reader should see headings, not '## Executive Summary'."""
-    page = (
-        __import__("pathlib").Path("src/mas/web/index.html")
-    ).read_text(encoding="utf-8")
+def test_the_report_is_passed_through_the_markdown_renderer():
+    """Defining markdown() is not enough -- it has to be called.
 
-    assert "function markdown(" in page
+    It was defined, styled and left uncalled, so the page dropped the
+    `white-space: pre-wrap` that had been formatting the report and rendered
+    nothing in its place: one wall of text with visible "##" markers.
+    """
+    script = _page_script()
+
+    assert "function markdown(" in script, "the renderer must exist"
+    assert "markdown(job.report)" in script, "and the report must go through it"
+    assert "esc(job.report)" not in script, "the raw escape path must be gone"
+
+
+def test_headings_are_converted_and_styled():
+    page = __import__("pathlib").Path("src/mas/web/index.html").read_text(encoding="utf-8")
+
     assert 'b.startsWith("## ")' in page, "h2 headings must be converted"
     assert "article h2" in page, "and styled"
 
