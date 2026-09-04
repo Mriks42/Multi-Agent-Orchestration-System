@@ -188,8 +188,7 @@ def main(argv: list[str] | None = None) -> int:
 
     mismatch = comparable(result, baseline)
     if mismatch:
-        console.print(f"
-[yellow]Not compared to the last run:[/yellow] {mismatch}.")
+        console.print(f"\n[yellow]Not compared to the last run:[/yellow] {mismatch}.")
         baseline = None
 
     rows = compare(result, baseline)
