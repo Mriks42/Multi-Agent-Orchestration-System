@@ -30,9 +30,11 @@ the repo, so the key must be added by hand on each machine.
 
 ## Where things stand
 
-41 commits, 217 tests passing. The pipeline works end to end against the live
-API, and the distributed, resume, eval and ablation paths have all been verified
-live rather than only in tests.
+The pipeline works end to end against the live API, and the distributed,
+resume, eval and ablation paths have all been verified live rather than only in
+tests. `pytest` reports the test count; `git log` reports the rest -- a number
+written here is stale by the next commit, so this file records what is true
+rather than what is countable.
 
 ## Next steps, in priority order
 
