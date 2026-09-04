@@ -253,3 +253,31 @@ def test_score_against_judge_only_replays_labelled_pairs():
     assert len(seen) == 2, "one labelled pair, judged in both orderings"
     assert set(judge_labels) == {"x"}
     assert result.n == 1
+
+
+def test_pair_ids_do_not_reveal_which_run_came_first():
+    """labels.json is readable; an id printing run order defeats the shuffle."""
+    from mas.evals.label import pairs_from_runs
+
+    runs = [
+        {"label": "NVIDIA Q4 2025", "drafts": {"NVIDIA Q4 2025": "old"}},
+        {"label": "20260903T030239Z", "drafts": {"NVIDIA Q4 2025": "new"}},
+    ]
+    runs[0]["label"] = "20260903T022933Z"
+    item = pairs_from_runs(runs)[0].item
+
+    assert "20260903T022933Z" not in item
+    assert "20260903T030239Z" not in item
+    assert item.startswith("NVIDIA Q4 2025|")
+
+
+def test_pair_ids_are_stable_whichever_way_the_shuffle_lands():
+    """A re-build must keep existing labels attached to their pair."""
+    from mas.evals.label import pairs_from_runs
+
+    runs = [
+        {"label": "r1", "drafts": {"NVIDIA Q4 2025": "one"}},
+        {"label": "r2", "drafts": {"NVIDIA Q4 2025": "two"}},
+    ]
+    ids = {pairs_from_runs(runs, seed=s)[0].item for s in range(6)}
+    assert len(ids) == 1, "the id must not depend on the shuffle"

@@ -11,6 +11,7 @@ being independent and the agreement number measures nothing.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from dataclasses import asdict, dataclass, field
@@ -54,9 +55,16 @@ class LabelSet:
 
     def save(self, path: Path = DEFAULT_PATH) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"pairs": [asdict(p) for p in self.pairs]}, indent=2), encoding="utf-8"
-        )
+        payload = {
+            "_note": (
+                "Label with `mas-label`, which shows the reports one pair at a "
+                "time. Editing this file by hand works, but reading it exposes "
+                "both drafts side by side and makes your judgement less "
+                "independent."
+            ),
+            "pairs": [asdict(p) for p in self.pairs],
+        }
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return path
 
     @classmethod
@@ -91,7 +99,12 @@ def pairs_from_runs(runs: list[dict], seed: int = 0) -> list[Pair]:
             company, _, quarter = label.partition(" ")
             pairs.append(
                 Pair(
-                    item=f"{label}|{run_a}|{run_b}",
+                    # The id is a hash of the run pair, not "label|run_a|run_b".
+                    # That earlier format printed the two run timestamps in A/B
+                    # order, so anyone reading labels.json could see which side
+                    # was the newer run -- which is exactly the knowledge the
+                    # shuffle exists to withhold.
+                    item=_pair_id(label, run_a, run_b),
                     company=company,
                     quarter=quarter,
                     a=draft_a,
@@ -99,6 +112,16 @@ def pairs_from_runs(runs: list[dict], seed: int = 0) -> list[Pair]:
                 )
             )
     return pairs
+
+
+def _pair_id(label: str, run_a: str, run_b: str) -> str:
+    """A stable id for a pair that does not reveal which run came first.
+
+    Order-independent: the same two runs give the same id whichever way the
+    shuffle placed them, so re-running `build` keeps existing labels attached.
+    """
+    runs = "|".join(sorted((run_a, run_b)))
+    return f"{label}|{hashlib.sha1(runs.encode()).hexdigest()[:10]}"
 
 
 def score_against_judge(deps: Deps, labels: LabelSet, on_pair=None) -> tuple[Agreement, dict]:

@@ -29,7 +29,7 @@ the repo, so the key must be added by hand on each machine.
 
 ## Where things stand
 
-19 commits, 130 tests passing, everything pushed. The pipeline works end to end
+21 commits, 132 tests passing, everything pushed. The pipeline works end to end
 against the live API, and the distributed, resume and eval paths have all been
 verified live rather than only in tests.
 
