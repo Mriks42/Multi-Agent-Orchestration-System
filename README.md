@@ -55,6 +55,25 @@ draft model gpt-4o-mini | review model gpt-4o | up to 2 revision(s)
 Agent nothing to find, and the model will invent a company from scratch — the
 Provenance footer then reports that nothing is sourced.
 
+## Two things running it taught me
+
+**The fact-checker was validating fabrications.** The Reviewer checks the draft
+against the findings, so when research invented figures it faithfully approved
+them -- and flagged the writer's honest "not disclosed" hedges as unsupported
+instead. Fixed by propagating provenance through the state: unsourced findings
+are marked, the writer must attribute rather than assert them, and every report
+carries a footer counting what is actually backed by a source.
+
+**The LLM judge preferred fabrication.** Tested against a `--no-search` control
+it scored a report with zero citations 5/5 on "grounding" and 5 overall, above
+the properly sourced baseline's 4. Not a limit of LLM judges -- a design error:
+it was asked whether claims traced to the evidence while being shown no
+evidence. Given the findings and sources, it scores that report 2/5 on
+grounding, verified across three companies.
+
+Neither was visible from reading the code. Both came from running it against a
+case where the right answer was already known.
+
 ## Running it distributed
 
 Section writing can run in separate worker processes instead of threads. No
@@ -217,6 +236,18 @@ to give a verdict at all, because a high rate over three items is noise. An
 unvalidated judge produces numbers that feel rigorous and mean nothing, and this
 is the step that usually gets skipped.
 
+**A measure is only trusted once it has failed a test it could not fake.**
+`mas-ablate` holds the company fixed and varies the system, with `--no-search`
+as a known-bad control: it produces a wholly fabricated report, so any measure
+scoring it the same as the real one is broken. That test found the LLM judge
+rating a report with zero citations 5/5 on "grounding" and 5 overall, *above*
+the properly sourced baseline. The cause was a design error -- the judge was
+asked whether claims traced to the evidence while being shown no evidence. Given
+the findings and sources it now scores that report 2/5, verified on three
+companies. The same test found one of the deterministic metrics inverted too:
+`unattributed_figure_count` measures hedging, and a fabricated report hedges
+everything.
+
 **Dependencies are injected, not imported.** Models and the search tool arrive
 through `Deps` ([deps.py](src/mas/deps.py)), so the test suite runs the entire
 graph against a scripted fake with no network and no API key.
@@ -227,7 +258,7 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-130 tests covering the routing table, the revision loop, budget exhaustion,
+192 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
 retries, crash recovery, checkpoint resume, eval metrics, and the judge's
 bias controls — all offline. One test spawns two real subprocesses to prove the
@@ -272,12 +303,14 @@ src/mas/
   evals/
     metrics.py          deterministic scores from a finished state
     label.py            human label collection and judge agreement
+    ablate.py           one company, several configurations
     seeded.py           planted-defect probes + clean control
     judge.py            LLM-as-judge with position/verbosity bias controls
     cases.py            the case set, spanning evidence coverage
     runner.py           suite execution, baselines, diffing
     cli.py              `mas-eval` entry point
     label_cli.py        `mas-label` entry point
+    ablate_cli.py       `mas-ablate` entry point
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
@@ -298,12 +331,13 @@ tests/
   test_evals.py         metric determinism, aggregation, probes
   test_judge.py         position-bias control, judge validation
   test_period.py        period validation, fiscal hints, trace accuracy
+  test_entrypoints.py   every module imports, every command parses
 ```
 
-Four commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+Five commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
 worker that writes sections from the queue, **`mas-eval`** scores the pipeline
-against a stored baseline, and **`mas-label`** collects human labels to validate
-the judge.
+against a stored baseline, **`mas-label`** collects human labels to validate the
+judge, and **`mas-ablate`** varies the system instead of the company.
 
 ## Cost note
 
