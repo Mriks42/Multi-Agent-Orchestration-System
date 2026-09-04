@@ -1,0 +1,73 @@
+{
+  "company": "Shopify",
+  "quarter": "Q4 2025",
+  "label": "20260904T012738Z",
+  "runs": [
+    {
+      "variant": "baseline",
+      "why": "current defaults",
+      "expect": "the reference every other variant is read against",
+      "metrics": {
+        "company": "Shopify",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 1.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 6,
+        "provenance_footer": true,
+        "citation_count": 47,
+        "cited_section_rate": 1.0,
+        "distinct_sources_cited": 8,
+        "approved": false,
+        "revisions_used": 1,
+        "open_issue_count": 2,
+        "blocker_count": 2,
+        "section_count": 7,
+        "word_count": 1388,
+        "duration_s": 23.7,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 4,
+        "grounding": 5,
+        "purpose_fit": 4,
+        "non_redundancy": 3,
+        "specificity": 5,
+        "usefulness": 4
+      }
+    },
+    {
+      "variant": "no-search",
+      "why": "web search disabled; the model works from recollection alone",
+      "expect": "MUCH worse \u2014 no sources, so every figure is unverified. A measure that misses this is not measuring quality.",
+      "metrics": {
+        "company": "Shopify",
+        "quarter": "Q4 2025",
+        "sourced_finding_rate": 0.0,
+        "orphan_citation_count": 0,
+        "unattributed_figure_count": 5,
+        "provenance_footer": true,
+        "citation_count": 0,
+        "cited_section_rate": 0.0,
+        "distinct_sources_cited": 0,
+        "approved": false,
+        "revisions_used": 1,
+        "open_issue_count": 30,
+        "blocker_count": 30,
+        "section_count": 7,
+        "word_count": 1354,
+        "duration_s": 32.2,
+        "error": "",
+        "extra": {}
+      },
+      "judge": {
+        "overall": 3,
+        "grounding": 2,
+        "purpose_fit": 4,
+        "non_redundancy": 3,
+        "specificity": 4,
+        "usefulness": 3
+      }
+    }
+  ]
+}
