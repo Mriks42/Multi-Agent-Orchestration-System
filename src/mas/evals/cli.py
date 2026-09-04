@@ -15,7 +15,7 @@ from ..config import load_settings
 from ..deps import Deps
 from ..llm import MissingAPIKey
 from .cases import CASES, SMOKE, by_name
-from .runner import compare, load_baseline, run_suite, save
+from .runner import comparable, compare, load_baseline, run_suite, save
 from .seeded import run_probes, score_probes
 
 console = Console()
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"{metrics.duration_s}s[/dim]"
             )
 
-    baseline = load_baseline(args.out)
+    baseline = load_baseline(args.out, like=cases)
     result = run_suite(
         deps, cases, max_revisions=args.max_revisions,
         with_probes=not args.no_probes, judge=args.judge, on_case=progress,
@@ -141,6 +141,10 @@ def main(argv: list[str] | None = None) -> int:
 
     console.print()
     console.print(_summary_table(result["summary"]))
+    console.print(
+        f"[dim]over {len(result['cases'])} case(s): "
+        + ", ".join(c["company"] for c in result["cases"]) + "[/dim]"
+    )
 
     if result["by_coverage"]:
         table = Table(title="By expected evidence coverage")
@@ -181,6 +185,12 @@ def main(argv: list[str] | None = None) -> int:
             + (f", {js['failed']} judge failure(s)" if js.get("failed") else "")
             + " — absolute scores are directional; trust pairwise deltas.[/dim]"
         )
+
+    mismatch = comparable(result, baseline)
+    if mismatch:
+        console.print(f"
+[yellow]Not compared to the last run:[/yellow] {mismatch}.")
+        baseline = None
 
     rows = compare(result, baseline)
     if rows:

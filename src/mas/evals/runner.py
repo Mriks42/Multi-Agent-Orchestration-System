@@ -160,12 +160,48 @@ def save(result: dict, directory: Path) -> Path:
     return path
 
 
-def load_baseline(directory: Path) -> dict | None:
-    """The most recent stored result, or None if this is the first run."""
+def load_baseline(directory: Path, like: dict | None = None) -> dict | None:
+    """The most recent stored result, or None if this is the first run.
+
+    With `like`, prefer the newest run covering the same companies -- otherwise
+    a smoke run silently becomes the baseline for a full-suite run.
+    """
     files = sorted(directory.glob("eval-*.json"))
     if not files:
         return None
-    return json.loads(files[-1].read_text(encoding="utf-8"))
+
+    runs = [json.loads(f.read_text(encoding="utf-8")) for f in files]
+    if like is not None:
+        wanted = {c.company for c in like} if hasattr(like, "__iter__") else set()
+        for run in reversed(runs):
+            if {c["company"] for c in run.get("cases", [])} == wanted:
+                return run
+    return runs[-1]
+
+
+def comparable(current: dict, baseline: dict | None) -> str:
+    """Explain why two runs cannot be diffed, or "" if they can.
+
+    A 2-case smoke run and a 12-case full run produce summary figures over
+    different companies, so a delta between them measures the case list rather
+    than any change to the pipeline.
+    """
+    if not baseline:
+        return ""
+
+    now = {c["company"] for c in current.get("cases", [])}
+    was = {c["company"] for c in baseline.get("cases", [])}
+    if now != was:
+        return (
+            f"baseline covered {len(was)} case(s), this run {len(now)} — "
+            "the delta would reflect the case list, not the pipeline"
+        )
+    if current.get("model") != baseline.get("model"):
+        return (
+            f"baseline used {baseline.get('model')}, this run "
+            f"{current.get('model')} — the delta includes the model change"
+        )
+    return ""
 
 
 def compare(current: dict, baseline: dict | None) -> list[dict]:

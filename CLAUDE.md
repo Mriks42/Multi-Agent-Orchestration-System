@@ -95,6 +95,10 @@ Do not "fix" these without discussing; each was a considered trade-off.
   output format changes, since nothing checks those automatically.
 - **`--no-search` produces fully fabricated reports.** Fine for wiring tests,
   never for evaluating quality.
+- **Check how many cases a stored eval covers before quoting its aggregates.**
+  `--smoke` runs only NVIDIA and Stripe, so their summary figures are two
+  reports, and their high/low coverage breakdown is one company per tier. Read
+  `len(result["cases"])` rather than assuming a run is suite-wide.
 - **Heredocs mangle `\n` inside Python string literals.** Several edits broke
   this way; use the Edit tool for anything containing escape sequences.
 - **Label with `mas-label`, not by editing `evals/labels.json`.** Hand-editing

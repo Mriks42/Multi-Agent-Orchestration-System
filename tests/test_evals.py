@@ -232,3 +232,73 @@ def test_check_citations_with_no_sources_tells_the_writer_to_remove_them():
     issues = check_citations("cites [0]", [])
     assert len(issues) == 1
     assert "no sources were retrieved" in issues[0].fix
+
+
+# ------------------------------------------------- comparability of baselines
+
+
+def _run(label, companies, model="gpt-4o-mini"):
+    return {"label": label, "model": model,
+            "cases": [{"company": c} for c in companies], "summary": {}}
+
+
+def test_runs_over_the_same_cases_are_comparable():
+    a = _run("r1", ["NVIDIA", "Stripe"])
+    b = _run("r2", ["Stripe", "NVIDIA"])  # order must not matter
+    from mas.evals.runner import comparable
+
+    assert comparable(a, b) == ""
+
+
+def test_a_smoke_run_is_not_a_baseline_for_a_full_run():
+    """Diffing 2 cases against 12 measures the case list, not the pipeline."""
+    from mas.evals.runner import comparable
+
+    smoke = _run("smoke", ["NVIDIA", "Stripe"])
+    full = _run("full", [f"C{i}" for i in range(12)])
+
+    reason = comparable(full, smoke)
+    assert "2 case(s)" in reason and "12" in reason
+
+
+def test_a_model_change_is_flagged_as_confounding():
+    from mas.evals.runner import comparable
+
+    old = _run("r1", ["NVIDIA"], model="gpt-4o-mini")
+    new = _run("r2", ["NVIDIA"], model="gpt-4o")
+
+    assert "model change" in comparable(new, old)
+
+
+def test_no_baseline_is_not_an_incomparability():
+    from mas.evals.runner import comparable
+
+    assert comparable(_run("r1", ["NVIDIA"]), None) == ""
+
+
+def test_load_baseline_prefers_a_run_over_the_same_cases(tmp_path):
+    """Otherwise the newest run wins even when it covers different companies."""
+    import json as _json
+
+    from mas.evals.cases import Case
+    from mas.evals.runner import load_baseline
+
+    (tmp_path / "eval-001.json").write_text(
+        _json.dumps(_run("001", ["NVIDIA", "Stripe"])), encoding="utf-8")
+    (tmp_path / "eval-002.json").write_text(
+        _json.dumps(_run("002", ["Microsoft"])), encoding="utf-8")
+
+    smoke_cases = [Case("NVIDIA"), Case("Stripe")]
+    assert load_baseline(tmp_path, like=smoke_cases)["label"] == "001"
+
+
+def test_load_baseline_falls_back_to_the_newest_when_nothing_matches(tmp_path):
+    import json as _json
+
+    from mas.evals.cases import Case
+    from mas.evals.runner import load_baseline
+
+    (tmp_path / "eval-001.json").write_text(
+        _json.dumps(_run("001", ["NVIDIA"])), encoding="utf-8")
+
+    assert load_baseline(tmp_path, like=[Case("Braze")])["label"] == "001"
