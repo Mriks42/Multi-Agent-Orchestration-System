@@ -281,3 +281,39 @@ def test_pair_ids_are_stable_whichever_way_the_shuffle_lands():
     ]
     ids = {pairs_from_runs(runs, seed=s)[0].item for s in range(6)}
     assert len(ids) == 1, "the id must not depend on the shuffle"
+
+
+def test_the_judge_is_shown_the_evidence_not_just_the_draft():
+    """It scored a citation-free report 5/5 on grounding when shown no findings."""
+    from mas.state import Finding, Source
+
+    seen = []
+
+    def handler(schema, messages, model):
+        seen.append(messages[1]["content"])
+        return JudgeScore(scores=[], overall=3)
+
+    model = FakeChatModel(handlers={"JudgeScore": handler})
+    deps = make_deps(model)
+    deps.judge_llm = model
+
+    score_report(deps, {
+        "company": "X", "quarter": "Q4 2025", "draft": DRAFT_A,
+        "findings": [Finding(claim="Revenue was $2.1B", topic="fin", source_ids=[0]),
+                     Finding(claim="Headcount near 4000", topic="ops")],
+        "sources": [Source(title="Q4 earnings", url="https://example.com")],
+    })
+
+    prompt = seen[0]
+    assert "Revenue was $2.1B" in prompt, "the findings must reach the judge"
+    assert "UNSOURCED" in prompt, "unsourced findings must be marked for the judge too"
+    assert "Q4 earnings" in prompt, "the sources must reach the judge"
+
+
+def test_a_judge_with_no_findings_still_scores_rather_than_crashing():
+    """An older stored run has drafts but no findings; rescoring must still work."""
+    model = FakeChatModel(handlers={"JudgeScore": lambda s, m, mo: JudgeScore(scores=[], overall=3)})
+    deps = make_deps(model)
+    deps.judge_llm = model
+
+    assert score_report(deps, {"company": "X", "quarter": "Q4", "draft": DRAFT_A}).overall == 3

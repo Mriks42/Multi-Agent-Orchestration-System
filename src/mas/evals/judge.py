@@ -38,8 +38,10 @@ from .metrics import _body
 log = logging.getLogger(__name__)
 
 CRITERIA = {
-    "grounding": "Every substantive claim is traceable to the cited evidence, and "
-                 "uncertain claims are hedged rather than asserted.",
+    "grounding": "Every substantive claim is traceable to a finding below, cited "
+                 "as [n]. A confident, fluent claim with no finding behind it is "
+                 "the WORST case, not a neutral one -- score it low however well "
+                 "it reads. Claims from UNSOURCED findings must be hedged.",
     "purpose_fit": "Each section does the job its heading promises, with no drift "
                    "into other sections' material.",
     "non_redundancy": "Sections do not restate each other. The same figure or point "
@@ -108,6 +110,14 @@ SCORE_PROMPT = """Report under review, for {company} ({quarter}):
 ---
 {draft}
 ---
+
+The evidence the report was written from. Nothing outside this list is
+established fact, and a finding marked UNSOURCED is the writer's recollection
+rather than something a source confirms:
+{findings}
+
+Sources the report may cite by index:
+{sources}
 
 Rubric:
 {criteria}
@@ -197,8 +207,15 @@ def _criteria_block() -> str:
 
 
 def score_report(deps: Deps, state) -> JudgeScore:
-    """Absolute rubric scores for one report."""
+    """Absolute rubric scores for one report.
+
+    The findings and sources go in alongside the draft. Without them the judge
+    was asked whether claims were traceable to evidence while being shown no
+    evidence -- so it scored how grounded the prose *sounded*, and rated a
+    report with zero citations 5/5 on grounding, above a properly sourced one.
+    """
     from ..agents.base import ask
+    from ..agents.base import format_findings, format_sources
 
     return ask(
         deps.judge,
@@ -208,6 +225,8 @@ def score_report(deps: Deps, state) -> JudgeScore:
             company=state.get("company", ""),
             quarter=state.get("quarter", ""),
             draft=_body(state.get("draft", "")),
+            findings=format_findings(state.get("findings", []) or []),
+            sources=format_sources(state.get("sources", []) or []),
             criteria=_criteria_block(),
             scale=SCALE,
             anchors=ANCHORS,
