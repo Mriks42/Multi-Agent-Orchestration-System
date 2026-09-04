@@ -57,6 +57,13 @@ Review the draft and report back.
    gap in substance, "minor" for style. Set `section` to the exact heading when
    the issue belongs to one section.
 4. Every issue needs a `fix` the writer can execute directly.
+4a. Set `remedy` to "delete" when no finding could support the claim however it
+   is worded -- market commentary, comparisons with other companies, dates or
+   figures the findings simply do not contain. Removing it is the only correct
+   fix, and saying "revise" instead sends the writer off to reword it, after
+   which you will raise the same issue again. Set "revise" when the claim can be
+   saved: it needs a citation, an attribution because its finding is UNSOURCED,
+   or clearer phrasing.
 5. Set `approved` to true only if there are no blocker or major issues.
 
 This is revision {revision} of at most {max_revisions}."""
@@ -78,6 +85,9 @@ def check_citations(draft: str, sources) -> list[Issue]:
     return [
         Issue(
             severity="blocker",
+            # A citation to a source that does not exist cannot be reworded
+            # into one that does.
+            remedy="delete",
             section="",
             problem=f"Citation [{n}] refers to a source that does not exist "
                     f"(only {len(sources)} source(s) were retrieved).",

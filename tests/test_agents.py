@@ -160,13 +160,11 @@ def test_reviewer_leaves_a_clean_approval_alone():
     assert make_reviewer_node(make_deps(model, reviewer=model))(state)["review"].approved is True
 
 
-def test_the_revision_prompt_tells_the_writer_to_delete_not_reword(sample_outline):
-    """An unsupported claim stays unsupported however it is phrased.
-
-    A live Datadog run spent all three revisions on one clause the findings
-    could not support; the writer rephrased it each time and the reviewer
-    objected each time. The only fix available was deletion.
-    """
+def test_the_writer_is_told_which_fix_each_issue_needs(sample_outline):
+    """A blanket "delete unsupported material" instruction was measured and
+    rejected: it cut open issues 17 -> 7 but also cut citations 32 -> 22 and
+    doubled unattributed figures. The reviewer now names the remedy per issue,
+    so deletion applies only where it was actually asked for."""
     seen = []
     model = FakeChatModel(text_handler=lambda messages, m: seen.append(messages) or "revised")
     state = initial_state("Datadog", "Q1 2025")
@@ -175,42 +173,47 @@ def test_the_revision_prompt_tells_the_writer_to_delete_not_reword(sample_outlin
         sections={"Executive Summary": "text", "Competitive Position": "text"},
         revision=1,
         review=Review(approved=False, issues=[
-            Issue(severity="blocker", section="Competitive Position",
-                  problem="no finding supports the comparison", fix="remove or cite it")]),
+            Issue(severity="blocker", section="Competitive Position", remedy="delete",
+                  problem="no finding supports the comparison", fix="remove the clause"),
+            Issue(severity="major", section="Competitive Position", remedy="revise",
+                  problem="figure needs attributing", fix="say reportedly"),
+        ]),
     )
 
     run_writer_pass(make_deps(model), state)
     prompt = seen[0][1]["content"]
 
-    assert "DELETE it" in prompt
-    assert "Rewording it leaves it" in prompt
-    assert "ceiling" in prompt, "the word target must not push it to pad instead"
+    assert "[DELETE] [blocker]" in prompt
+    assert "[REVISE] [major]" in prompt
+    assert "DELETE means no finding can support the claim" in prompt
+    assert "REVISE means the claim can be saved" in prompt
+    assert "including its citations" in prompt, "unflagged material must be left alone"
 
 
-def test_the_revision_prompt_does_not_contradict_the_hedging_rule(sample_outline):
-    """Telling the writer not to hedge broke the rule that unsourced claims must be.
+def test_an_issue_defaults_to_revise():
+    """Deletion must be opt-in: a model omitting the field must not delete."""
+    assert Issue(severity="minor", problem="p", fix="f").remedy == "revise"
 
-    The first version said "do not rephrase it, soften it, or hedge it". Measured
-    over four companies it cut open issues 17 -> 7 but raised unattributed
-    figures 1.75 -> 4.25: the writer generalised "do not hedge" and began
-    asserting unsourced figures flatly, which is the failure this project exists
-    to prevent.
-    """
-    seen = []
-    model = FakeChatModel(text_handler=lambda messages, m: seen.append(messages) or "revised")
-    state = initial_state("Datadog", "Q1 2025")
-    state.update(
-        outline=sample_outline,
-        sections={"Executive Summary": "text", "Competitive Position": "text"},
-        revision=1,
-        review=Review(approved=False, issues=[
-            Issue(severity="blocker", section="Competitive Position",
-                  problem="unsupported", fix="remove or cite")]),
-    )
 
-    run_writer_pass(make_deps(model), state)
-    prompt = seen[0][1]["content"]
+def test_the_mechanical_citation_check_asks_for_deletion():
+    """A citation to a source that does not exist cannot be reworded into one."""
+    from mas.agents.reviewer import check_citations
 
-    assert "UNSOURCED finding is different" in prompt, "deletion must not swallow attribution"
-    assert "reportedly" in prompt, "hedging stays required for unsourced findings"
-    assert "or hedge it" not in prompt, "the blanket ban on hedging must be gone"
+    issues = check_citations("cites [47]", [Source(title="a")])
+    assert issues[0].remedy == "delete"
+
+
+def test_the_reviewer_prompt_explains_when_to_choose_delete():
+    captured = {}
+
+    def handler(schema, messages, model):
+        captured["prompt"] = messages[1]["content"]
+        return Review(approved=True)
+
+    model = FakeChatModel(handlers={"Review": handler})
+    state = initial_state("Acme", "Q4 2025")
+    state["draft"] = "text"
+    make_reviewer_node(make_deps(model, reviewer=model))(state)
+
+    assert "remedy" in captured["prompt"]
+    assert "reword it, after" in captured["prompt"], "the failure mode should be named"

@@ -80,18 +80,17 @@ The reviewer raised these issues:
 {issues}
 
 Rewrite the section so every issue is resolved. Keep what already works, change
-what was flagged.
+what was flagged, and stay near {target_words} words.
 
-When NO finding supports a claim at all, DELETE it. Rewording it leaves it
-unsupported and the reviewer will raise it again. A shorter section that says
-only what the findings support is a better section, so treat {target_words}
-words as a ceiling rather than a target on a revision pass.
+Each issue says which fix it needs, and the two are not interchangeable:
+- DELETE means no finding can support the claim, so remove it. Rewording it
+  leaves it unsupported and it will be raised again. Removing a sentence is the
+  right outcome here; do not replace it with a vaguer version of itself.
+- REVISE means the claim can be saved by rewording, citing a finding, or
+  attributing it ("reportedly", "estimated at around") where the finding is
+  UNSOURCED.
 
-That applies only to claims with no finding behind them. A claim resting on an
-UNSOURCED finding is different: keep it and attribute it ("reportedly",
-"estimated at around"), exactly as the original draft required. Deleting is for
-material the findings do not cover; attribution is for material they cover
-without a source.
+Everything not flagged stays as it is, including its citations.
 
 Output the revised body text only."""
 
@@ -216,7 +215,8 @@ def make_write_section_node(deps: Deps):
                     findings=task["findings"],
                     sources=task["sources"],
                     issues="\n".join(
-                        f"- [{i.severity}] {i.problem}\n  Fix: {i.fix}" for i in task["issues"]
+                        f"- [{i.remedy.upper()}] [{i.severity}] {i.problem}\n  Fix: {i.fix}"
+                        for i in task["issues"]
                     ),
                     target_words=task["target_words"],
                 ),
