@@ -74,6 +74,28 @@ grounding, verified across three companies.
 Neither was visible from reading the code. Both came from running it against a
 case where the right answer was already known.
 
+## The web UI
+
+```bash
+mas-serve            # http://127.0.0.1:8000
+```
+
+Type a company, watch the four agents finish one at a time, read the report.
+A report takes ~25 seconds, so submitting returns a job id and the page polls --
+the same submit-and-poll shape the distributed broker uses, one layer up. A
+spinner would have hidden the pipeline, which is the part worth seeing:
+
+```
+Research Agent   22 sources -> 9 findings
+Planning Agent   Executive Summary | Financial Performance | ...
+Writer Agent     4 of 7 section(s) drafted        <- wave 1, the body sections
+Writer Agent     pass 1, 7 section(s) drafted     <- wave 2, the summary
+Reviewer Agent   changes requested (3 issues, 2 unsupported)
+```
+
+The page shows the provenance count and any unresolved reviewer issues above
+the report, so a reader sees what is unverified before they read a figure.
+
 ## Running it distributed
 
 Section writing can run in separate worker processes instead of threads. No
@@ -258,7 +280,7 @@ graph against a scripted fake with no network and no API key.
 pytest
 ```
 
-192 tests covering the routing table, the revision loop, budget exhaustion,
+211 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, provenance labelling, fan-out dispatch, broker leases and
 retries, crash recovery, checkpoint resume, eval metrics, and the judge's
 bias controls — all offline. One test spawns two real subprocesses to prove the
@@ -311,6 +333,11 @@ src/mas/
     cli.py              `mas-eval` entry point
     label_cli.py        `mas-label` entry point
     ablate_cli.py       `mas-ablate` entry point
+  web/
+    app.py              FastAPI submit-and-poll API
+    jobs.py             in-process job store, progress per agent
+    index.html          the page
+    cli.py              `mas-serve` entry point
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
@@ -332,12 +359,14 @@ tests/
   test_judge.py         position-bias control, judge validation
   test_period.py        period validation, fiscal hints, trace accuracy
   test_entrypoints.py   every module imports, every command parses
+  test_web.py           the API end to end, offline
 ```
 
-Five commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+Six commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
 worker that writes sections from the queue, **`mas-eval`** scores the pipeline
 against a stored baseline, **`mas-label`** collects human labels to validate the
-judge, and **`mas-ablate`** varies the system instead of the company.
+judge, **`mas-ablate`** varies the system instead of the company, and **`mas-serve`**
+runs the web UI.
 
 ## Cost note
 

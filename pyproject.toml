@@ -15,6 +15,7 @@ mas-worker = "mas.distributed.cli:main"
 mas-eval = "mas.evals.cli:main"
 mas-label = "mas.evals.label_cli:main"
 mas-ablate = "mas.evals.ablate_cli:main"
+mas-serve = "mas.web.cli:main"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

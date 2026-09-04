@@ -18,19 +18,19 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e .
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 192 tests, all offline — no API key needed
+pytest                          # 211 tests, all offline — no API key needed
 ```
 
-Built on Python 3.14. Five commands: `mas` (write a report), `mas-worker`
-(section worker), `mas-eval` (score the pipeline), `mas-label` (human labels for
-the judge), `mas-ablate` (vary the system, not the company).
+Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
+UI), `mas-worker` (section worker), `mas-eval` (score the pipeline), `mas-label`
+(human labels for the judge), `mas-ablate` (vary the system, not the company).
 
 `.env` is gitignored and has never been committed — it will not come across with
 the repo, so the key must be added by hand on each machine.
 
 ## Where things stand
 
-31 commits, 192 tests passing. The pipeline works end to end against the live
+34 commits, 211 tests passing. The pipeline works end to end against the live
 API, and the distributed, resume, eval and ablation paths have all been verified
 live rather than only in tests.
 
@@ -51,9 +51,10 @@ particular cannot be done without them.
    looks: the ablation already validated the judge where it counts, by proving
    it catches fabrication. This adds a finer check on whether it shares a
    human's taste. Until it is done, do not quote an agreement figure.
-4. **A web API and minimal UI.** The project is CLI-only, so nobody who will not
-   clone a repo can see it. `broker.submit` / `broker.stats` already have the
-   right shape for a submit-and-poll API.
+4. **Deploy the UI somewhere.** `mas-serve` exists and works locally, but the
+   project is still only visible to someone who clones it. A hosted link is
+   what makes it shareable on an application. Note the job store is in-memory
+   and single-process, which is fine for one instance and not for more.
 5. **Redis broker + Docker Compose.** `Broker` is a protocol, so this is one new
    file plus compose config. Blocked only on Docker not being installed.
 
@@ -107,6 +108,9 @@ Do not "fix" these without discussing; each was a considered trade-off.
   repeating it. Whether it reduced repetition is unmeasured -- the judge scored
   `non_redundancy` identically before and after, and that criterion does not
   vary, so the change is kept on reasoning rather than evidence.
+- **The web job store is in-memory and single-process.** Jobs vanish on
+  restart and do not span workers. Deliberate for a one-instance demo;
+  `SqliteBroker` is the upgrade path if it ever needs to outlive a process.
 - **Distribution is not faster** for a single report (30s vs 24s threaded).
   Broker round-trips cost more than they save. It buys fault tolerance and
   throughput across many reports — claim those, not a speedup.

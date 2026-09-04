@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-Agent Research</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1a1a19; --dim: #6b6b66; --line: #e3e3df;
+    --card: #fff; --accent: #2f6f4e; --warn: #8a5a1a; --bad: #9b2c2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --fg: #eeeeec; --dim: #9a9a95; --line: #2e2e2b;
+      --card: #1e1e1c; --accent: #7fc9a1; --warn: #d9a441; --bad: #e08585;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--dim); margin: 0 0 28px; font-size: 14px; }
+  form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  input {
+    flex: 1 1 200px; padding: 10px 12px; font: inherit; color: var(--fg);
+    background: var(--card); border: 1px solid var(--line); border-radius: 7px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input.q { flex: 0 0 130px; }
+  button {
+    padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: var(--bg); border: 0; border-radius: 7px;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .hint { color: var(--dim); font-size: 13px; margin: 0 0 28px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; margin-bottom: 18px;
+  }
+  .agents { list-style: none; margin: 0; padding: 0; }
+  .agents li {
+    display: flex; gap: 10px; padding: 7px 0; align-items: baseline;
+    border-bottom: 1px solid var(--line);
+  }
+  .agents li:last-child { border-bottom: 0; }
+  .agents .name { font-weight: 600; flex: 0 0 130px; }
+  .agents .detail { color: var(--dim); font-size: 14px; }
+  .pending { color: var(--dim); }
+  .spin {
+    display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    animation: spin .8s linear infinite; vertical-align: -1px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .prov { font-size: 14px; }
+  .prov.ok { color: var(--accent); }
+  .prov.warn { color: var(--warn); }
+  .prov.bad { color: var(--bad); font-weight: 600; }
+  .issue { color: var(--warn); font-size: 13.5px; padding: 3px 0; }
+  .err { color: var(--bad); }
+  article { white-space: pre-wrap; font-size: 15px; }
+  article h1 { font-size: 20px; margin: 0 0 14px; }
+  footer { color: var(--dim); font-size: 13px; margin-top: 36px; }
+  code { background: var(--line); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Multi-Agent Research</h1>
+  <p class="sub">Four agents research, plan, write and fact-check a market research report.</p>
+
+  <form id="f">
+    <input id="company" placeholder="Company, e.g. Shopify" required autocomplete="off">
+    <input id="quarter" class="q" placeholder="Q1 2025" value="Q1 2025" required autocomplete="off">
+    <button id="go">Generate</button>
+  </form>
+  <p class="hint">
+    Use a real, publicly reporting company &mdash; a made-up name gives the research
+    agent nothing to find. The period must include a year.
+  </p>
+
+  <div id="out"></div>
+
+  <footer>
+    Every figure is checked against retrieved sources. The provenance line says how
+    much of the report is actually backed by one &mdash; read it before trusting a number.
+  </footer>
+</div>
+
+<script>
+const AGENTS = ["Research Agent", "Planning Agent", "Writer Agent", "Reviewer Agent"];
+const out = document.getElementById("f").parentElement.querySelector("#out") || document.getElementById("out");
+const btn = document.getElementById("go");
+let timer = null;
+
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  clearInterval(timer);
+  const company = document.getElementById("company").value.trim();
+  const quarter = document.getElementById("quarter").value.trim();
+  if (!company || !quarter) return;
+
+  btn.disabled = true;
+  render({ status: "queued", steps: [] });
+
+  let res;
+  try {
+    res = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company, quarter }),
+    });
+  } catch (err) {
+    btn.disabled = false;
+    return renderError("Could not reach the server.");
+  }
+
+  if (!res.ok) {
+    btn.disabled = false;
+    const body = await res.json().catch(() => ({}));
+    return renderError(body.detail || `Request failed (${res.status}).`);
+  }
+
+  const { id } = await res.json();
+  timer = setInterval(() => poll(id), 900);
+  poll(id);
+});
+
+async function poll(id) {
+  let job;
+  try {
+    job = await (await fetch(`/api/reports/${id}`)).json();
+  } catch { return; }
+
+  render(job);
+  if (job.status === "done" || job.status === "failed") {
+    clearInterval(timer);
+    btn.disabled = false;
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function renderError(message) {
+  out.innerHTML = `<div class="card err">${esc(message)}</div>`;
+}
+
+function render(job) {
+  if (job.status === "failed") return renderError(job.error || "The run failed.");
+
+  const done = job.steps || [];
+  const seen = new Set(done.map(s => s.agent));
+  const running = job.status === "running" || job.status === "queued";
+
+  // One row per agent, so the pipeline is visible before it has finished.
+  const rows = AGENTS.map(name => {
+    const mine = done.filter(s => s.agent === name);
+    if (mine.length) {
+      return mine.map(s =>
+        `<li><span class="name">${esc(name)}</span><span class="detail">${esc(s.detail)}</span></li>`
+      ).join("");
+    }
+    const isNext = running && !seen.has(name) &&
+      AGENTS.slice(0, AGENTS.indexOf(name)).every(a => seen.has(a));
+    return `<li class="pending"><span class="name">${esc(name)}</span>` +
+      `<span class="detail">${isNext ? '<span class="spin"></span> working' : "waiting"}</span></li>`;
+  }).join("");
+
+  let html = `<div class="card"><ul class="agents">${rows}</ul></div>`;
+
+  if (job.status === "done") {
+    const p = job.provenance || {};
+    let cls = "ok", msg = `${p.sourced} of ${p.total} findings backed by a retrieved source`;
+    if (!p.total) { cls = "bad"; msg = "No findings — nothing was researched."; }
+    else if (!p.sourced) { cls = "bad"; msg = `None of the ${p.total} findings are backed by a source. Every figure is model recollection.`; }
+    else if (p.unsourced) { cls = "warn"; msg += ` — ${p.unsourced} rest on model recollection`; }
+
+    html += `<div class="card"><div class="prov ${cls}">${esc(msg)}</div>`;
+    if (!job.approved && (job.open_issues || []).length) {
+      html += `<div style="margin-top:10px">` +
+        job.open_issues.map(i => `<div class="issue">${esc(i)}</div>`).join("") + `</div>`;
+    }
+    html += `</div><div class="card"><article>${esc(job.report)}</article></div>`;
+  }
+
+  out.innerHTML = html;
+}
+</script>
+</body>
+</html>

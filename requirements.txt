@@ -7,3 +7,5 @@ pydantic-settings>=2.7
 python-dotenv>=1.0
 ddgs>=9.0
 rich>=13.0
+fastapi>=0.115
+uvicorn[standard]>=0.30
