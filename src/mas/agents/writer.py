@@ -80,8 +80,20 @@ The reviewer raised these issues:
 {issues}
 
 Rewrite the section so every issue is resolved. Keep what already works, change
-what was flagged, and stay near {target_words} words. Output the revised body
-text only."""
+what was flagged.
+
+When NO finding supports a claim at all, DELETE it. Rewording it leaves it
+unsupported and the reviewer will raise it again. A shorter section that says
+only what the findings support is a better section, so treat {target_words}
+words as a ceiling rather than a target on a revision pass.
+
+That applies only to claims with no finding behind them. A claim resting on an
+UNSOURCED finding is different: keep it and attribute it ("reportedly",
+"estimated at around"), exactly as the original draft required. Deleting is for
+material the findings do not cover; attribution is for material they cover
+without a source.
+
+Output the revised body text only."""
 
 
 def _render(outline, sections: dict[str, str], findings) -> str:
