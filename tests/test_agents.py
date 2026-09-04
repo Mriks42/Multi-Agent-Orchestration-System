@@ -90,13 +90,37 @@ def test_writer_renders_draft_with_headings_in_outline_order(sample_outline):
     assert draft.index("## Executive Summary") < draft.index("## Competitive Position")
 
 
-def test_plan_sections_emits_one_task_per_section_on_the_first_pass(sample_outline):
+def test_the_first_wave_drafts_body_sections_only(sample_outline):
+    """The executive summary waits for something to summarise."""
     state = initial_state("Company X", "Q4")
     state["outline"] = sample_outline
 
     tasks = plan_sections(state)
-    assert [t["heading"] for t in tasks] == ["Executive Summary", "Competitive Position"]
+    assert [t["heading"] for t in tasks] == ["Competitive Position"]
     assert all(t["issues"] == [] for t in tasks)
+
+
+def test_the_second_wave_drafts_summaries_with_the_bodies_visible(sample_outline):
+    """Siblings are the whole point: without them the summary repeats them."""
+    state = initial_state("Company X", "Q4")
+    state.update(outline=sample_outline, sections={"Competitive Position": "rivals text"})
+
+    tasks = plan_sections(state)
+    assert [t["heading"] for t in tasks] == ["Executive Summary"]
+    assert tasks[0]["siblings"] == {"Competitive Position": "rivals text"}
+
+
+def test_an_outline_of_only_summaries_still_dispatches():
+    """A degenerate outline must not stall waiting for bodies that do not exist."""
+    from mas.state import Outline, Section
+
+    state = initial_state("Company X", "Q4")
+    state["outline"] = Outline(
+        title="T",
+        sections=[Section(heading="Executive Summary", purpose="p"),
+                  Section(heading="Outlook", purpose="p")],
+    )
+    assert len(plan_sections(state)) == 2
 
 
 def test_plan_sections_emits_nothing_when_every_section_is_approved(sample_outline):

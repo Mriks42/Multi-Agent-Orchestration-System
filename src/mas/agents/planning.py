@@ -33,7 +33,11 @@ Design the outline for a market research report. Requirements:
   the research cannot fill.
 - For each section give the purpose (what the reader should take away) and 2-4
   key points drawn from the findings.
-- Set target_words per section; the whole report should land near {words} words."""
+- Set target_words per section; the whole report should land near {words} words.
+- Set `synthesises` to true for sections that summarise or draw conclusions from
+  the others rather than covering their own material -- an executive summary, an
+  outlook, a recommendations section. Those are written last, once the rest
+  exist, so they can refer to them instead of repeating them."""
 
 
 def make_planning_node(deps: Deps):

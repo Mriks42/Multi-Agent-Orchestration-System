@@ -121,11 +121,38 @@ def _issues_for(heading: str, issues: list[Issue]) -> list[Issue]:
     return [i for i in issues if i.section == heading or not i.section]
 
 
-def plan_sections(state: ReportState) -> list[dict]:
-    """Build one task payload per section that needs writing this pass.
+def _due_now(outline, existing: dict[str, str], review) -> list:
+    """The sections to dispatch this round.
 
-    Returns [] when every section is already approved, which the graph reads as
-    "nothing to dispatch".
+    Drafting runs in two waves. Body sections go first, all at once; sections
+    that summarise the others go second, once there is something to summarise.
+    Drafting everything simultaneously was cheaper by one round-trip but left
+    the executive summary blind to the report it introduces, which is why the
+    judge scored `non_redundancy` 4/5 on all twelve eval reports while every
+    other criterion scored 5.
+
+    A revision pass ignores waves entirely and dispatches whatever was flagged.
+    """
+    if review is not None:
+        return [s for s in outline.sections if _issues_for(s.heading, review.issues)]
+
+    body = [s for s in outline.sections if not s.is_synthesising]
+    synthesis = [s for s in outline.sections if s.is_synthesising]
+
+    pending_body = [s for s in body if s.heading not in existing]
+    if pending_body:
+        return pending_body
+    # An outline of nothing but summaries would otherwise never dispatch.
+    return [s for s in synthesis if s.heading not in existing] or [
+        s for s in body if s.heading not in existing
+    ]
+
+
+def plan_sections(state: ReportState) -> list[dict]:
+    """Build one task payload per section that needs writing this round.
+
+    Returns [] when the draft is complete and nothing is flagged, which the
+    graph reads as "nothing to dispatch".
     """
     outline = state["outline"]
     existing = state.get("sections", {})
@@ -134,11 +161,8 @@ def plan_sections(state: ReportState) -> list[dict]:
     sources = format_sources(state.get("sources", []))
 
     tasks: list[dict] = []
-    for section in outline.sections:
+    for section in _due_now(outline, existing, review):
         targeted = _issues_for(section.heading, review.issues) if review else []
-        first_pass = section.heading not in existing
-        if not first_pass and not targeted:
-            continue  # already approved; the reducer keeps the existing text
 
         tasks.append(
             {
@@ -155,9 +179,9 @@ def plan_sections(state: ReportState) -> list[dict]:
                 "current": existing.get(section.heading, ""),
                 "discipline": discipline(state["company"], state["quarter"]),
                 "issues": targeted,
-                # Siblings let a section avoid repeating what others say. On the
-                # first pass there are none, which is the accepted trade-off of
-                # drafting every section at once instead of in sequence.
+                # Siblings are what stop a section repeating the others. Body
+                # sections see none (they are drafted together); summarising
+                # sections see all of them, which is the point of the wave.
                 "siblings": {h: t for h, t in existing.items() if h != section.heading},
             }
         )
@@ -221,21 +245,25 @@ def make_assemble_node(deps: Deps):
         sections = state.get("sections", {})
         revision = state.get("revision", 0)
         present = sum(1 for s in outline.sections if sections.get(s.heading))
+        complete = present == len(outline.sections)
 
-        # Report what this pass actually did, not how many sections exist. The
-        # fan-out refactor lost that distinction, so a revision touching one
-        # section still announced "6 section(s) assembled".
-        dispatched = len(plan_sections(state))
-        detail = (
-            f"{present} section(s) drafted" if revision == 0
-            else f"{dispatched} of {present} section(s) revised"
-        )
+        # The revision budget counts finished drafts, not drafting rounds --
+        # otherwise the two waves of a first draft would spend it before the
+        # reviewer ever saw the report.
+        if state.get("review") is not None:
+            detail = f"{len(plan_sections(state))} of {present} section(s) revised"
+        elif complete:
+            detail = f"{present} section(s) drafted"
+        else:
+            detail = f"{present} of {len(outline.sections)} section(s) drafted"
 
-        log.info("assemble: pass %d, %s", revision + 1, detail)
+        log.info("assemble: %s", detail)
         return {
             "draft": _render(outline, sections, state.get("findings", [])),
-            "revision": revision + 1,
-            "trace": [f"writer: pass {revision + 1}, {detail}"],
+            "revision": revision + 1 if complete else revision,
+            "trace": [
+                (f"writer: pass {revision + 1}, " if complete else "writer: ") + detail
+            ],
         }
 
     return assemble

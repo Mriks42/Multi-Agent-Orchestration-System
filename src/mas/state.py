@@ -32,6 +32,12 @@ class Finding(BaseModel):
     )
 
 
+SYNTHESISING_HEADINGS = (
+    "executive summary", "summary", "overview", "outlook", "recommendation",
+    "conclusion", "key takeaway", "what this means",
+)
+
+
 class Section(BaseModel):
     """One planned section of the report."""
 
@@ -39,6 +45,27 @@ class Section(BaseModel):
     purpose: str = Field(description="What this section must establish for the reader")
     key_points: list[str] = Field(default_factory=list)
     target_words: int = 250
+    synthesises: bool = Field(
+        default=False,
+        description=(
+            "True when this section summarises or draws conclusions from the other "
+            "sections rather than covering its own material. Such sections are "
+            "written after the rest, so they can see what the others already said."
+        ),
+    )
+
+    @property
+    def is_synthesising(self) -> bool:
+        """Model flag, with a heading fallback.
+
+        The planner sets `synthesises`, but a missed flag on an Executive
+        Summary is the exact case this exists to catch, so the heading is
+        checked too rather than trusting the model alone.
+        """
+        if self.synthesises:
+            return True
+        lowered = self.heading.lower()
+        return any(word in lowered for word in SYNTHESISING_HEADINGS)
 
 
 class Outline(BaseModel):

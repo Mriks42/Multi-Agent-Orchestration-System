@@ -111,14 +111,18 @@ def test_dispatch_routes_to_assemble_when_there_is_nothing_to_write(sample_outli
     assert dispatch_sections(state) == ["assemble"]
 
 
-def test_dispatch_emits_one_send_per_section_needing_work(sample_outline):
+def test_dispatch_emits_one_send_per_section_due_this_wave(sample_outline):
+    """Wave one is body sections; the executive summary comes after them."""
     state = initial_state("Company X", "Q4")
     state["outline"] = sample_outline
 
     sends = dispatch_sections(state)
-    assert len(sends) == 2
     assert {s.node for s in sends} == {"write_section"}
-    assert {s.arg["heading"] for s in sends} == {"Executive Summary", "Competitive Position"}
+    assert {s.arg["heading"] for s in sends} == {"Competitive Position"}
+
+    state["sections"] = {"Competitive Position": "text"}
+    second = dispatch_sections(state)
+    assert {s.arg["heading"] for s in second} == {"Executive Summary"}
 
 
 def test_trace_accumulates_across_the_whole_run():
@@ -135,3 +139,77 @@ def test_sources_from_search_reach_the_final_state():
 
     assert state["sources"] == [source]
     assert state["findings"][0].source_ids == [0]
+
+
+# --------------------------------------------------------------- two waves
+
+
+def _wave_models(reviews):
+    """A realistic outline: two body sections plus an executive summary."""
+    it = iter(reviews)
+
+    def handler(schema, messages, model):
+        name = schema.__name__
+        if name == "_Queries":
+            return schema(queries=["q1"])
+        if name == "_Findings":
+            return schema(findings=[Finding(claim="c", topic="t", source_ids=[0])])
+        if name == "Outline":
+            return Outline(
+                title="Company X — Q4",
+                sections=[
+                    Section(heading="Executive Summary", purpose="frame", synthesises=True),
+                    Section(heading="Financial Performance", purpose="numbers"),
+                    Section(heading="Competitive Position", purpose="rivals"),
+                ],
+            )
+        raise AssertionError(name)
+
+    writer = FakeChatModel(
+        handlers={k: handler for k in ("_Queries", "_Findings", "Outline")},
+        text_handler=lambda messages, m: f"body {len(m.calls)}",
+    )
+    reviewer = FakeChatModel(handlers={"Review": lambda s, m, mo: next(it)})
+    return writer, reviewer
+
+
+def test_the_graph_drafts_bodies_first_then_the_summary():
+    """Two assembles before review: one per drafting wave."""
+    writer, reviewer = _wave_models([Review(approved=True)])
+    events = []
+    state = run_report(
+        make_deps(writer, reviewer), "Company X", "Q4",
+        on_event=lambda node, update: events.append(node),
+    )
+
+    assert events == [
+        "research", "planning",
+        "write_section", "write_section", "assemble",   # wave 1: the two bodies
+        "write_section", "assemble",                    # wave 2: the summary
+        "reviewer",
+    ]
+    assert set(state["sections"]) == {
+        "Executive Summary", "Financial Performance", "Competitive Position"
+    }
+
+
+def test_the_summary_is_written_with_the_body_sections_in_its_prompt():
+    """This is the whole reason for the second wave."""
+    prompts = []
+    writer, reviewer = _wave_models([Review(approved=True)])
+    writer.text_handler = lambda messages, m: prompts.append(messages[1]["content"]) or "body"
+
+    run_report(make_deps(writer, reviewer), "Company X", "Q4")
+
+    summary_prompt = next(p for p in prompts if "Section to write: Executive Summary" in p)
+    assert "Financial Performance" in summary_prompt
+    assert "Competitive Position" in summary_prompt
+
+
+def test_the_drafting_waves_do_not_spend_the_revision_budget():
+    """Two assembles must still count as revision 1, or review never happens."""
+    writer, reviewer = _wave_models([Review(approved=True)])
+    state = run_report(make_deps(writer, reviewer), "Company X", "Q4", max_revisions=1)
+
+    assert state["revision"] == 1
+    assert state["review"].approved is True

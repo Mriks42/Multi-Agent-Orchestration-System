@@ -47,6 +47,23 @@ def dispatch_sections(state: ReportState) -> list:
     return [Send("write_section", task) for task in tasks]
 
 
+def route_after_assemble(state: ReportState) -> Literal["draft_more", "review"]:
+    """Send an unfinished draft back for its next wave before reviewing it.
+
+    Drafting is two waves: body sections, then the sections that summarise them.
+    Reviewing a half-written report would waste a reviewer call and, worse,
+    spend a revision on sections that were never drafted.
+    """
+    outline = state.get("outline")
+    if outline is None:
+        return "review"
+    sections = state.get("sections", {})
+    if all(sections.get(s.heading) for s in outline.sections):
+        return "review"
+    log.info("draft incomplete; dispatching the next wave")
+    return "draft_more"
+
+
 def route_after_review(state: ReportState) -> Literal["revise", "publish"]:
     """Decide whether the draft goes back to the Writer or ships."""
     review = state.get("review")
@@ -110,23 +127,29 @@ def build_graph(deps: Deps, checkpointer=None):
         graph.add_node("distribute", make_distributed_node(deps))
         graph.add_edge("planning", "distribute")
         graph.add_edge("distribute", "assemble")
-        revise_target = "distribute"
+        next_wave = "distribute"
     else:
         graph.add_node("write_section", make_write_section_node(deps))
         graph.add_edge("write_section", "assemble")
-        # Fan out from planning, and again from the reviewer on a revision pass.
+        # Fan out from planning, and again for the second drafting wave or a
+        # revision pass -- all three go through the same dispatch.
         graph.add_conditional_edges("planning", dispatch_sections, ["write_section", "assemble"])
         graph.add_node("dispatch_revision", lambda state: {})
         graph.add_conditional_edges(
             "dispatch_revision", dispatch_sections, ["write_section", "assemble"]
         )
-        revise_target = "dispatch_revision"
+        next_wave = "dispatch_revision"
 
-    graph.add_edge("assemble", "reviewer")
+    # An incomplete draft goes back for its next wave rather than to review.
+    graph.add_conditional_edges(
+        "assemble",
+        route_after_assemble,
+        {"draft_more": next_wave, "review": "reviewer"},
+    )
     graph.add_conditional_edges(
         "reviewer",
         route_after_review,
-        {"revise": revise_target, "publish": END},
+        {"revise": next_wave, "publish": END},
     )
 
     return graph.compile(checkpointer=checkpointer)
