@@ -195,3 +195,72 @@ def test_the_job_store_is_bounded():
     assert store.get(ids[0]) is None, "the oldest job should have been evicted"
     assert store.get(ids[-1]) is not None
     assert len(store.recent(limit=100)) == 3
+
+
+# ------------------------------------------------------------- page rendering
+
+
+def test_the_page_renders_the_report_rather_than_showing_markdown_syntax():
+    """A reader should see headings, not '## Executive Summary'."""
+    page = (
+        __import__("pathlib").Path("src/mas/web/index.html")
+    ).read_text(encoding="utf-8")
+
+    assert "function markdown(" in page
+    assert 'b.startsWith("## ")' in page, "h2 headings must be converted"
+    assert "article h2" in page, "and styled"
+
+
+def test_the_page_does_not_repeat_the_provenance_section():
+    """It is shown in its own card above the report; twice is noise."""
+    page = (
+        __import__("pathlib").Path("src/mas/web/index.html")
+    ).read_text(encoding="utf-8")
+
+    assert "Provenance" in page and "split" in page
+    assert "already shown above" in page, "the reason should be recorded"
+
+
+def _page_script() -> str:
+    import pathlib
+
+    page = pathlib.Path("src/mas/web/index.html").read_text(encoding="utf-8")
+    return page.split("<script>")[1].split("</script>")[0]
+
+
+def test_no_javascript_literal_is_split_across_lines():
+    r"""String-presence tests stay green on broken JS; this catches what they miss.
+
+    An editing slip turned the two-character sequence backslash-n inside two
+    regex literals into real newlines, which breaks every regex after it. The
+    page still contained every expected substring, so nothing else failed.
+
+    A regex or template literal must open and close on the same line, so an odd
+    count of backticks on a line means one is running on.
+    """
+    for number, line in enumerate(_page_script().splitlines(), 1):
+        assert line.count("`") % 2 == 0, f"line {number} has an unclosed backtick: {line!r}"
+
+    script = _page_script()
+    assert "split(/\\n---" in script, "the provenance splitter must be on one line"
+    assert "split(/\\n{2,}/)" in script, "the paragraph splitter must be on one line"
+
+
+def test_the_reports_own_markdown_round_trips_through_the_renderer():
+    """The renderer must handle the exact shape `_render` produces."""
+    script = _page_script()
+
+    # These are the three block kinds a report contains.
+    assert 'b.startsWith("# ")' in script, "the title"
+    assert 'b.startsWith("## ")' in script, "section headings"
+    assert "cite" in script, "citations"
+
+
+def test_report_text_is_escaped_before_being_rendered():
+    """The model writes the report, so it is never trusted as HTML."""
+    page = (
+        __import__("pathlib").Path("src/mas/web/index.html")
+    ).read_text(encoding="utf-8")
+
+    assert "esc(b.slice(3))" in page
+    assert "esc(b).replace" in page

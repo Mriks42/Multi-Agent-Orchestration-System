@@ -61,8 +61,15 @@
   .prov.bad { color: var(--bad); font-weight: 600; }
   .issue { color: var(--warn); font-size: 13.5px; padding: 3px 0; }
   .err { color: var(--bad); }
-  article { white-space: pre-wrap; font-size: 15px; }
-  article h1 { font-size: 20px; margin: 0 0 14px; }
+  article { font-size: 15px; }
+  article h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  article h2 {
+    font-size: 15px; margin: 26px 0 8px; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--dim);
+  }
+  article h2:first-of-type { margin-top: 8px; }
+  article p { margin: 0 0 13px; }
+  article .cite { color: var(--accent); font-size: 12px; vertical-align: super; }
   footer { color: var(--dim); font-size: 13px; margin-top: 36px; }
   code { background: var(--line); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 </style>
@@ -148,6 +155,22 @@ function esc(s) {
 
 function renderError(message) {
   out.innerHTML = `<div class="card err">${esc(message)}</div>`;
+}
+
+// The report is our own markdown, not user input, but it still goes through
+// esc() first -- the model writes it, so it is never trusted as HTML.
+function markdown(md) {
+  // The provenance section is already shown above; repeating it is noise.
+  const body = md.split(/\n---\s*\n+##\s*Provenance/)[0];
+
+  return body.split(/\n{2,}/).map(block => {
+    const b = block.trim();
+    if (!b) return "";
+    if (b.startsWith("## ")) return `<h2>${esc(b.slice(3))}</h2>`;
+    if (b.startsWith("# ")) return `<h1>${esc(b.slice(2))}</h1>`;
+    // Citations become small superscripts so they stop interrupting the prose.
+    return `<p>${esc(b).replace(/\[(\d+)\]/g, '<span class="cite">[$1]</span>')}</p>`;
+  }).join("");
 }
 
 function render(job) {
