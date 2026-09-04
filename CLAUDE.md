@@ -44,12 +44,13 @@ particular cannot be done without them.
    can answer "what does a run cost?" -- which came up repeatedly and could
    only be estimated. Capture usage per response and total it per agent.
 2. **Write up the two findings somewhere a reader will see them** (see below).
-3. **Validate the LLM judge.** `mas-label` works and 2 pairs are built, but
-   **none are labelled yet** — labelling is a human judgement the user has to
-   make, by running `mas-label` and picking the better report in each pair. Ten
-   labels is the threshold for a meaningful number, so this also needs ~5 more
-   `mas-eval --smoke --judge` runs or 2 full-suite runs to generate enough
-   pairs. Until it is done, the judge's scores should not be quoted.
+3. **Validate the LLM judge — deferred, and unblocked.** 28 pairs are built and
+   committed, so no further eval runs are needed. It waits only on the user
+   spending ~20 minutes in `mas-label` picking the better report in each pair;
+   ten labels is the threshold for a meaningful number. Lower priority than it
+   looks: the ablation already validated the judge where it counts, by proving
+   it catches fabrication. This adds a finer check on whether it shares a
+   human's taste. Until it is done, do not quote an agreement figure.
 4. **A web API and minimal UI.** The project is CLI-only, so nobody who will not
    clone a repo can see it. `broker.submit` / `broker.stats` already have the
    right shape for a submit-and-poll API.
