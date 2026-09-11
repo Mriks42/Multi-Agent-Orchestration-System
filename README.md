@@ -1,3 +1,14 @@
+---
+title: Multi-Agent Research
+emoji: 🔎
+colorFrom: green
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Four agents research, write and fact-check a market report
+---
+
 # Multi-Agent Orchestration System
 
 Four specialised agents collaborate to produce a market research report. Built on

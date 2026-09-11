@@ -1,7 +1,10 @@
 # One image for every target. Hugging Face Spaces, Lightsail, EC2 and Fargate
 # all run a container and pass a port; nothing below is specific to any of them,
 # so the platform stays a deploy-time choice rather than a code change.
-FROM python:3.13-slim
+# 3.14 to match the interpreter the test suite actually runs on. requires-python
+# allows 3.10+, but an image is not the place to discover which version a
+# dependency disagrees with.
+FROM python:3.14-slim
 
 # Non-root, and UID 1000 specifically: Hugging Face Spaces runs containers as
 # that user and a root-owned working directory is not writable there.
