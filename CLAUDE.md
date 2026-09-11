@@ -43,13 +43,16 @@ a lot in cost and in how much of the user's own time they need.
 
 1. **Deploy the UI.** See "Deployment, as far as it got" below -- the options
    are worked out and two decisions are outstanding.
-2. **Measure what the figure check actually did.** `check_figures` is built and
-   wired in (see below), but its effect on live reports is unmeasured -- the
-   probe result is offline and n=1 by construction. A `mas-eval` run before and
-   after would say whether it moves `unattributed_figure_count` and open issues
-   on real drafts, or just adds noise the writer spends revisions on. Read the
-   resolution note under Traps first: four companies at one run each cannot
-   resolve a small effect, and this may well be one.
+2. **Find a live case where the figure check fires.** It is built, wired in and
+   verified not to add noise -- one live Shopify run, n=1, drafted 63 material
+   figures and the check flagged none of them. What that run does *not* show is
+   the check earning its place on a real report: its only live evidence so far
+   is the absence of false positives. It caught nothing because there was
+   nothing to catch (12/12 findings sourced, and the model's own two blockers
+   were misattribution of figures that *were* in the evidence). Worth rerunning
+   opportunistically on companies with thin coverage, where the writer is most
+   likely to invent -- but read the resolution note under Traps before reading
+   anything into a single run either way.
 3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
    a run cost?" can only be estimated -- it came up repeatedly.
 4. **Write up the two findings** (see below) somewhere a reader meets them in
@@ -126,6 +129,11 @@ is about ten minutes of their clicking once the config exists.
   - Only *material* figures are checked. Bare counts, years and quarter labels
     are skipped deliberately: a false positive costs the writer a revision it
     needed for a real defect.
+  - **It compares the draft against the findings, not against reality** -- the
+    same limitation already recorded below for the Reviewer. A wrong figure
+    that research collected is a figure the check will happily approve. This
+    also rules out `--no-search` as an adversarial test of it: the writer takes
+    its figures from the invented findings, so they match and pass.
 - **No report has ever been approved** -- 0 of 12 in the full suite, every run.
   Largely downstream of the above: the reviewer keeps finding invented figures
   and is right to. Worth knowing that approval also requires no *major* issues,
