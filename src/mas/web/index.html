@@ -20,26 +20,70 @@
     margin: 0; background: var(--bg); color: var(--fg);
     font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
-  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
-  .sub { color: var(--dim); margin: 0 0 28px; font-size: 14px; }
-  form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 52px 22px 80px; }
+  .masthead { margin-bottom: 30px; }
+  h1 { font-size: 27px; margin: 0 0 6px; letter-spacing: -0.02em; font-weight: 650; }
+  .sub { color: var(--dim); margin: 0; font-size: 15px; max-width: 56ch; }
+  .pipeline {
+    display: flex; flex-wrap: wrap; gap: 7px; align-items: center;
+    margin-top: 16px; font-size: 12px; color: var(--dim);
+  }
+  .pipeline b { font-weight: 600; color: var(--fg); }
+  .pipeline .arrow { opacity: .5; }
+
+  form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 220px; }
+  .field.q { flex: 0 1 168px; }
+  label {
+    font-size: 11.5px; font-weight: 600; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .05em;
+  }
   input {
-    flex: 1 1 200px; padding: 10px 12px; font: inherit; color: var(--fg);
-    background: var(--card); border: 1px solid var(--line); border-radius: 7px;
+    width: 100%; padding: 11px 13px; font: inherit; color: var(--fg);
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
   }
   input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  input.q { flex: 0 0 130px; }
   button {
-    padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer;
-    background: var(--accent); color: var(--bg); border: 0; border-radius: 7px;
+    padding: 11px 20px; font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: var(--card); border: 0; border-radius: 8px;
   }
-  button:disabled { opacity: .55; cursor: default; }
-  .hint { color: var(--dim); font-size: 13px; margin: 0 0 28px; }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--dim); font-size: 13px; margin: 0 0 16px; }
+
+  /* The period formats, spelled out. "Q1 2025" and "Q1 FY2025" can be a year
+     apart, and nothing about the notation says so to someone new to it. */
+  .help {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+    padding: 15px 17px; margin-bottom: 26px;
+  }
+  .help summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fg);
+    list-style: none;
+  }
+  .help summary::-webkit-details-marker { display: none; }
+  .help summary::before { content: "▸ "; color: var(--dim); }
+  .help[open] summary::before { content: "▾ "; }
+  .help summary:hover { color: var(--accent); }
+  .periods { margin: 14px 0 0; display: grid; gap: 11px; }
+  .periods .row { display: grid; grid-template-columns: 108px 1fr; gap: 12px; align-items: baseline; }
+  .periods .term {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    padding: 3px 8px; border-radius: 6px; background: rgba(127,127,127,.12);
+    border: 1px solid var(--line); text-align: center; cursor: pointer; color: var(--fg);
+  }
+  .periods .term:hover { border-color: var(--accent); color: var(--accent); }
+  .periods .what { font-size: 13.5px; color: var(--dim); line-height: 1.55; }
+  .periods .what b { color: var(--fg); font-weight: 600; }
+  .helpnote {
+    font-size: 12.5px; color: var(--dim); margin: 14px 0 0;
+    padding-top: 12px; border-top: 1px solid var(--line);
+  }
   .card {
     background: var(--card); border: 1px solid var(--line);
-    border-radius: 10px; padding: 18px 20px; margin-bottom: 18px;
+    border-radius: 11px; padding: 19px 22px; margin-bottom: 18px;
   }
+  .card.report { padding: 26px 28px; }
   .agents { list-style: none; margin: 0; padding: 0; }
   .agents li {
     display: flex; gap: 10px; padding: 7px 0; align-items: baseline;
@@ -70,11 +114,16 @@
     animation: spin .8s linear infinite; vertical-align: -1px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .prov { font-size: 14px; }
+  .prov { font-size: 14px; font-weight: 600; }
   .prov.ok { color: var(--accent); }
   .prov.warn { color: var(--warn); }
   .prov.bad { color: var(--bad); font-weight: 600; }
-  .issue { color: var(--warn); font-size: 13.5px; padding: 3px 0; }
+  /* Each unresolved objection gets its own rule and a marker, so five issues
+     read as five things rather than one wall of amber. */
+  .issue {
+    color: var(--warn); font-size: 13.5px; padding: 9px 0 0; margin-top: 9px;
+    border-top: 1px solid var(--line); line-height: 1.55;
+  }
   .err { color: var(--bad); }
   article { font-size: 15px; }
   article h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
@@ -105,17 +154,36 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Multi-Agent Research</h1>
-  <p class="sub">Four agents research, plan, write and fact-check a market research report.</p>
+  <div class="masthead">
+    <h1>Multi-Agent Research</h1>
+    <p class="sub">
+      Four agents research, plan, write and fact-check a market research report.
+      Every figure is traced back to the source it came from.
+    </p>
+    <div class="pipeline">
+      <b>Research</b> <span class="arrow">&rarr;</span>
+      <b>Planning</b> <span class="arrow">&rarr;</span>
+      <b>Writing</b> <span class="arrow">&rarr;</span>
+      <b>Review</b> <span class="arrow">&#8635;</span>
+      <span>&mdash; the reviewer can send work back</span>
+    </div>
+  </div>
 
   <form id="f">
-    <input id="company" placeholder="Company, e.g. Shopify" required autocomplete="off">
-    <input id="quarter" class="q" placeholder="Q1 2025" value="Q1 2025" required autocomplete="off">
+    <div class="field">
+      <label for="company">Company</label>
+      <input id="company" placeholder="Shopify" required autocomplete="off">
+    </div>
+    <div class="field q">
+      <label for="quarter">Period</label>
+      <input id="quarter" placeholder="Q1 2025" value="Q1 2025" required autocomplete="off">
+    </div>
     <button id="go">Generate</button>
   </form>
+
   <p class="hint">
     Use a real, publicly reporting company &mdash; a made-up name gives the research
-    agent nothing to find. The period must include a year.
+    agent nothing to find.
     <span class="examples">Try
       <button type="button" class="eg" data-c="Shopify">Shopify</button>
       <button type="button" class="eg" data-c="Airbnb">Airbnb</button>
@@ -123,6 +191,39 @@
       <button type="button" class="eg" data-c="Confluent">Confluent</button>
     </span>
   </p>
+
+  <details class="help" open>
+    <summary>What should I put for the period?</summary>
+    <div class="periods">
+      <div class="row">
+        <button type="button" class="term" data-q="Q1 2025">Q1 2025</button>
+        <span class="what">
+          <b>The calendar quarter</b> &mdash; January to March 2025. Use this unless
+          you specifically want a company's own financial year.
+        </span>
+      </div>
+      <div class="row">
+        <button type="button" class="term" data-q="Q1 FY2025">Q1 FY2025</button>
+        <span class="what">
+          <b>The company's own financial year</b>, which often does not start in
+          January. NVIDIA's FY2025 began in February <em>2024</em> &mdash; so this can
+          be almost a year earlier than the calendar quarter of the same name.
+        </span>
+      </div>
+      <div class="row">
+        <button type="button" class="term" data-q="Q1 CY2025">Q1 CY2025</button>
+        <span class="what">
+          <b>The calendar quarter, said explicitly.</b> Same period as "Q1 2025",
+          but it leaves no room for the agents to guess wrong.
+        </span>
+      </div>
+    </div>
+    <p class="helpnote">
+      Also accepted: <code>FY2024</code>, <code>H1 2025</code>, <code>2023-2025</code>.
+      A year is always required &mdash; without one the agents would pick a year
+      silently and the report would never say which.
+    </p>
+  </details>
 
   <div id="ambiguity" class="ambiguity" hidden></div>
 
@@ -174,6 +275,15 @@ for (const eg of document.querySelectorAll(".eg")) {
     companyEl.value = eg.dataset.c;
     checkPeriod();
     companyEl.focus();
+  });
+}
+
+// The period formats in the help block double as buttons: reading what
+// "Q1 FY2025" means and then having to retype it is a pointless step.
+for (const term of document.querySelectorAll(".term")) {
+  term.addEventListener("click", () => {
+    quarterEl.value = term.dataset.q;
+    checkPeriod();
   });
 }
 
@@ -290,7 +400,7 @@ function render(job) {
       html += `<div style="margin-top:10px">` +
         job.open_issues.map(i => `<div class="issue">${esc(i)}</div>`).join("") + `</div>`;
     }
-    html += `</div><div class="card"><article>${markdown(job.report)}</article></div>`;
+    html += `</div><div class="card report"><article>${markdown(job.report)}</article></div>`;
   }
 
   out.innerHTML = html;
