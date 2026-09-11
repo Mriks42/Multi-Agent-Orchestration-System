@@ -158,3 +158,58 @@ def test_reviewer_leaves_a_clean_approval_alone():
     state["draft"] = "text"
 
     assert make_reviewer_node(make_deps(model, reviewer=model))(state)["review"].approved is True
+
+
+# ------------------------------------- the reviewer must not review the footers
+
+
+def test_the_reviewer_never_sees_the_generated_footers():
+    """A live Confluent run had it fact-check the Provenance footer.
+
+    It raised "10 of 10 findings are backed by a retrieved source" as an
+    unsupported claim against a section that did not contain it. That objection
+    is unanswerable: the footer is regenerated from state on every assemble, so
+    no revision the Writer makes can remove it, and it would return every pass.
+    """
+    from mas.agents.reviewer import make_reviewer_node
+
+    seen = {}
+
+    def capture(schema, messages, model):
+        seen["prompt"] = messages[1]["content"]
+        return Review(approved=True, issues=[])
+
+    model = FakeChatModel(handlers={"Review": capture})
+    draft = (
+        "# Acme\n\n## Financials\n\nRevenue was $2.1 billion [0].\n\n"
+        "---\n\n## Provenance\n\n"
+        "10 of 10 findings are backed by a retrieved source; 0 rest on model "
+        "recollection and need verification.\n"
+    )
+
+    make_reviewer_node(make_deps(model))({
+        "company": "Acme", "quarter": "Q1 2025",
+        "findings": [Finding(claim="Revenue was $2.1 billion.", topic="fin", source_ids=[0])],
+        "sources": [Source(title="Q1")],
+        "draft": draft, "revision": 1, "max_revisions": 2,
+    })
+
+    assert "Revenue was $2.1 billion" in seen["prompt"], "the report body must still be reviewed"
+    assert "## Provenance" not in seen["prompt"]
+    assert "backed by a retrieved source" not in seen["prompt"]
+
+
+def test_the_review_status_footer_is_stripped_too():
+    """A resumed run re-reviews a draft that already carries a verdict."""
+    from mas.agents.base import report_body
+    from mas.agents.writer import stamp_review
+
+    stamped = stamp_review(
+        "# Acme\n\n## Financials\n\nRevenue rose.\n\n---\n\n## Provenance\n\nAll sourced.\n",
+        Review(approved=False, issues=[Issue(severity="blocker", problem="p", fix="f")]),
+    )
+    body = report_body(stamped)
+
+    assert "Revenue rose." in body
+    assert "Review status" not in body
+    assert "Provenance" not in body

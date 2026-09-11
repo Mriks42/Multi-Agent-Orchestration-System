@@ -35,6 +35,7 @@ import re
 from dataclasses import dataclass
 
 from ..state import Issue
+from .base import report_body
 
 # Multipliers for magnitude suffixes. Single letters are allowed because drafts
 # use them ("$11.6B"), and are safe only with the trailing \b in _FIGURE below:
@@ -61,10 +62,6 @@ _FIGURE = re.compile(
 # Citation markers are stripped before parsing: "[12]" is an index into the
 # source list, not a quantity, and reads as one to any number-matching regex.
 _CITATION = re.compile(r"\[\d+\]")
-
-# The Provenance footer is generated from the state rather than written by the
-# model, so its counts are grounded by construction and must not be checked.
-_FOOTER = re.compile(r"\n-{3,}\s*\n+##\s*Provenance\b")
 
 # How many distinct ungrounded figures to report. A draft full of invented
 # numbers needs a rewrite, not forty issues; the message says how many remain.
@@ -93,9 +90,7 @@ class Figure:
         return abs(self.value - other.value) <= allowed
 
 
-def _body(text: str) -> str:
-    """The report without its generated Provenance footer."""
-    return _FOOTER.split(text)[0]
+_body = report_body  # the same stripping every reader of a draft needs
 
 
 def extract_figures(text: str) -> list[Figure]:

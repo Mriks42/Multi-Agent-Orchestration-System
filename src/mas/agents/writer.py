@@ -18,7 +18,13 @@ import logging
 from ..deps import Deps
 from ..period import discipline
 from ..state import Issue, ReportState
-from .base import ask_text, format_findings, format_sources, provenance
+from .base import (
+    REVIEW_HEADING,
+    ask_text,
+    format_findings,
+    format_sources,
+    provenance,
+)
 
 log = logging.getLogger(__name__)
 
@@ -115,8 +121,6 @@ def _render(outline, sections: dict[str, str], findings) -> str:
         )
     return "\n".join(parts).strip() + "\n"
 
-
-REVIEW_HEADING = "## Review status"
 
 _REVIEW_CAVEAT = (
     "The Reviewer checks this draft against the findings above, not against "

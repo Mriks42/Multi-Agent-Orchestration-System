@@ -12,7 +12,7 @@ import re
 
 from ..deps import Deps
 from ..state import Issue, ReportState, Review
-from .base import ask, format_findings, format_sources
+from .base import ask, format_findings, format_sources, report_body
 from .figures import check_figures
 
 log = logging.getLogger(__name__)
@@ -93,6 +93,11 @@ def make_reviewer_node(deps: Deps):
     """Build the graph node that reviews the draft."""
 
     def review(state: ReportState) -> dict:
+        # The generated footers are stripped first. They are computed from the
+        # state, so reviewing them produces objections the Writer cannot act on
+        # -- see `report_body`.
+        draft = report_body(state.get("draft", ""))
+
         verdict = ask(
             deps.reviewer_llm,
             Review,
@@ -102,14 +107,13 @@ def make_reviewer_node(deps: Deps):
                 quarter=state["quarter"],
                 findings=format_findings(state.get("findings", [])),
                 sources=format_sources(state.get("sources", [])),
-                draft=state.get("draft", ""),
+                draft=draft,
                 revision=state.get("revision", 1),
                 max_revisions=state.get("max_revisions", 2),
             ),
         )
 
         # Mechanical checks the model is unreliable at, merged into its verdict.
-        draft = state.get("draft", "")
         orphans = check_citations(draft, state.get("sources", []))
         if orphans:
             verdict.issues = list(verdict.issues) + orphans

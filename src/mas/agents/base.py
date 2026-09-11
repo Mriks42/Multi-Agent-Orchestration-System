@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TypeVar
 
 from pydantic import BaseModel
@@ -70,3 +71,28 @@ def format_findings(findings) -> str:
 def provenance(findings) -> tuple[int, int]:
     """Return (sourced, total) finding counts."""
     return sum(1 for f in findings if f.source_ids), len(findings)
+
+
+PROVENANCE_HEADING = "## Provenance"
+REVIEW_HEADING = "## Review status"
+
+# Everything from the Provenance heading onward is generated from the state:
+# the provenance counts, and the review verdict stamped on at publication.
+_GENERATED_FOOTER = re.compile(r"\n-{3,}\s*\n+##\s*(?:Provenance|Review status)\b")
+
+
+def report_body(draft: str) -> str:
+    """The prose the Writer produced, without the generated footers.
+
+    Anything that reads the draft as a report must read this instead. A live
+    Confluent run had the Reviewer fact-check the Provenance footer and raise
+    "10 of 10 findings are backed by a retrieved source" as an unsupported
+    claim -- against the Recommendations section, which did not contain it.
+
+    That objection is not merely wrong, it is unanswerable: the footer is
+    regenerated from state on every assemble, so no revision the Writer makes
+    can remove it. The Reviewer would raise it again on the next pass and
+    every pass after, spending the revision budget on a sentence the Writer
+    does not control.
+    """
+    return _GENERATED_FOOTER.split(draft or "")[0]
