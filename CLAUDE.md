@@ -36,13 +36,36 @@ tests. `pytest` reports the test count; `git log` reports the rest -- a number
 written here is stale by the next commit, so this file records what is true
 rather than what is countable.
 
+**As of 2026-09-10.** The web UI is the part that moved most recently: it shows
+the fan-out and per-agent timings, runs the revision loop (`max_revisions`
+defaults to 2 there, so the revise cycle actually fires), warns before a run
+when the period is ambiguous for an offset-fiscal company, and lists the
+evidence -- every finding with its sources, unsourced ones marked, every source
+as a link. Reports now carry a Review status footer stating whether they shipped
+approved. Deployment config is written and pushed but nothing is live yet.
+
+Four things were found by *running* it rather than reading it, and all four are
+worth knowing before changing that area:
+
+- the Reviewer was fact-checking the generated Provenance footer and raising an
+  objection no revision could ever satisfy (`report_body` in `agents/base.py`)
+- `KNOWN_OFFSET_FISCAL` was missing three companies from the project's own eval
+  suite, so every stored eval quietly asked 3 of 12 cases an ambiguous question
+- the documented setup recipe could not work: pytest was never a declared
+  dependency
+- Hugging Face Spaces, the platform this file recommended, stopped being free
+
+None of those were visible from the code. Prefer running the thing.
+
 ## Next steps, in priority order
 
 Ask which of these to take up rather than starting one unprompted -- they differ
 a lot in cost and in how much of the user's own time they need.
 
-1. **Deploy the UI.** See "Deployment, as far as it got" below -- the options
-   are worked out and two decisions are outstanding.
+1. **Finish the deploy.** Everything Claude can do is done and pushed; see
+   "Deployment: built, not yet live" below. It waits on ~10 minutes of the
+   user's clicking in the Render dashboard, which their current network blocks
+   at DNS -- a phone hotspot is the workaround. Nothing here needs code.
 2. **Find a live case where the figure check fires.** It is built, wired in and
    verified not to add noise -- one live Shopify run, n=1, drafted 63 material
    figures and the check flagged none of them. What that run does *not* show is
@@ -61,54 +84,86 @@ a lot in cost and in how much of the user's own time they need.
    committed, so no further eval runs are needed. It waits only on the user
    spending ~20 minutes in `mas-label`. Lower priority than it looks: the
    ablation already validated the judge where it counts.
-6. **Redis broker + Docker Compose.** `Broker` is a protocol, so this is one new
-   file plus compose config. Blocked only on Docker not being installed.
+6. **Redis broker + Docker Compose -- deferred, and still blocked.** `Broker` is
+   a protocol, so this is one new file (`distributed/redis_broker.py`, mirroring
+   `sqlite_broker.py`) plus a compose file standing up Redis, one orchestrator
+   and two `mas-worker`s. **Docker is still not installed on this machine** --
+   `docker --version` is not found -- so it can be written but not run, and an
+   untested broker is worth very little. Check for Docker before starting.
+   Worth knowing it buys nothing for a single report: distribution is *slower*
+   (30s vs 24s threaded). It buys fault tolerance and throughput across many
+   reports, and a second broker implementation is what proves `Broker` was
+   really a protocol rather than SQLite with extra steps. That last point is
+   the actual reason to do it -- it is a portfolio argument, not a feature.
 
 Not on this list, deliberately: **more replicates so the eval can resolve small
 prompt changes.** It would cost 3x per experiment to detect effects that did not
 matter; the resolution limit is documented instead.
 
-## Deployment, as far as it got
+## Deployment: built, not yet live
 
-Agreed this is the top priority: `mas-serve` works locally, so the project is
-still only visible to someone willing to clone it, install it and supply an API
-key. A hosted link is what converts the work into something a recruiter can
-click.
+Both decisions are made and the config is written, committed and pushed.
+**Render free tier, Docker, access mode `gallery`.** What remains is the user's
+ten minutes in a dashboard; there is no code left to write.
 
-**The constraint that rules out serverless.** A report takes 25-40 seconds and
-runs on a background thread with in-memory job state, so Vercel, Netlify and
-Lambda are all out -- request timeouts are shorter than a run, and nothing
-persists between the submit and the first poll. It needs a long-running process.
+**What exists** (all on `main`, pushed to `github.com/Mriks42/Multi-Agent-Orchestration-System-`):
 
-**Options, with the trade-off that matters:**
+- `Dockerfile` -- one image for every host. Runs as UID 1000 and defaults to
+  port 7860 because Hugging Face wants both; reads `$PORT` so Render, Lightsail,
+  EC2 and Fargate all work unchanged. **Never built** -- Docker is not installed
+  here, so the first real build happens on the platform. Expect the possibility
+  of one build error and fix it from the log.
+- `render.yaml` -- Blueprint, `plan: free`, `numInstances: 1`, both secrets
+  `sync: false` so the file describes the deploy without containing the key.
+- `.github/workflows/keep-warm.yml` -- pings `/api/health` every 10 minutes.
+  Needs a `DEMO_URL` repo secret; exits quietly without it.
+- `web/access.py`, `web/gallery.py`, `gallery/*.json` -- four real saved reports.
 
-| | cost | catch |
-| --- | --- | --- |
-| Hugging Face Spaces | free | no spin-down on CPU basic; AI-native audience |
-| Railway | $5/mo credit | no spin-down while the credit lasts |
-| Render free | free | spins down after 15 min idle, ~50s cold start |
-| Fly.io | small free allowance | more configuration to get right |
+**The three steps left for the user:** create the Blueprint at
+dashboard.render.com, paste `OPENAI_API_KEY` and `MAS_ACCESS_CODE` when asked,
+then set `DEMO_URL` as a GitHub secret to start the keep-warm.
 
-Hugging Face Spaces was recommended. Render's free tier is the obvious default,
-but a 50-second cold start is a real problem for a portfolio link: a visitor
-clicks, sees nothing, and closes the tab before the app has started.
+**Their network blocks `render.com` at DNS.** Measured on 2026-09-10: the local
+resolver returns NXDOMAIN for `render.com` while `github.com`, `huggingface.co`
+and `google.com` all resolve, and `8.8.8.8`/`1.1.1.1` resolve it fine. It is a
+narrow block on Render's own domain -- almost certainly the university network
+(the machine is on ASU's AD). `onrender.com` is **not** blocked, so a deployed
+app is reachable from there; only the dashboard is not. A phone hotspot for the
+one-time setup is the fix. Do not suggest changing DNS on a managed machine.
 
-**Decision one, outstanding: which platform.**
+**Why Render and not the others, as of September 2026.** The free-hosting
+landscape collapsed and an earlier version of this file recommended a platform
+that no longer works:
 
-**Decision two, outstanding: access control.** A public URL lets strangers spend
-the user's OpenAI credits at roughly 25 calls a report. The options put to them,
-undecided:
+| | status |
+| --- | --- |
+| Hugging Face Spaces | **Docker SDK needs PRO** (~$9/mo) since July 2026; new free accounts cannot select CPU Basic at all |
+| Fly.io | no free tier for new users since October 2024 |
+| Koyeb | free tier closed to new signups after the Mistral acquisition, early 2026 |
+| Render free | 750 instance-hours/month; spins down after 15 min idle, 30-60s cold start |
+| Railway | ~$5/mo of credit, then paid |
+| AWS Lightsail | $5/mo flat, and puts "deployed on AWS" on a CV |
 
-- an access code shared with recruiters, with a locked page otherwise
-- a rate limit per IP only (open, but evadable and still costs money)
-- a read-only gallery of pre-generated reports (zero risk, but nobody can try
-  their own company)
-- an access code plus a read-only fallback for visitors without it
+Render's cold start is the only real objection, and the keep-warm answers it:
+750 hours a month against a month of at most 744 means one service staying
+awake fits *inside* the allowance rather than evading it. Say that out loud
+rather than hiding it -- it looks like gaming a free tier and is not.
 
-**Division of labour.** Claude can write the Dockerfile, entry point,
-environment handling and access control. Claude cannot deploy: that needs the
-user's own account and their OpenAI key set as a secret on the platform, which
-is about ten minutes of their clicking once the config exists.
+**Serverless is still out**, for the original reason: a report takes 25-40s on a
+background thread with in-memory job state, so the submit and the first poll are
+different requests and nothing guarantees they reach the same container. API
+Gateway also times out at 29s. Lambda, Vercel and Netlify all fail on this.
+
+**One instance, always.** No autoscaling, no load balancer, no `--workers`. A
+second replica answers polls for jobs it has never heard of. `SqliteBroker` is
+the upgrade path if it ever needs to outlive a process.
+
+**A lesson worth keeping.** The platform advice in this file was stale and was
+followed without checking, which nearly cost the user a wasted afternoon on a
+dead end. Hosting free tiers change every few months. Verify pricing and
+availability against the web before recommending a platform, the same way
+`period.py`'s fiscal dates were checked against filings after recall got one
+wrong.
 
 ## Known problems, stated plainly
 
@@ -252,7 +307,25 @@ Do not "fix" these without discussing; each was a considered trade-off.
   Sample CLI output in the README rots silently — re-read the examples whenever
   output format changes, since nothing checks those automatically.
 - **`--no-search` produces fully fabricated reports.** Fine for wiring tests,
-  never for evaluating quality.
+  never for evaluating quality. It is also **not** an adversarial test of
+  `check_figures`: the writer draws its figures from the invented findings, so
+  they match the evidence and pass.
+- **`mas-serve` does not reload Python.** `index.html` is re-read from disk on
+  every request, so HTML and CSS changes appear on a browser refresh -- but
+  every `.py` module was imported at startup. After changing agent, web or
+  access code, restart the process or the user is testing the old build while
+  reading the new page. Cost real confusion once. `--reload` while iterating.
+- **A pydantic body model must live at module level in `web/app.py`.** That file
+  has `from __future__ import annotations`, so FastAPI resolves body types by
+  name against module globals. A model defined inside `create_app` is invisible
+  there and the route silently degrades to treating the body as a query
+  parameter -- every request answers 422, with no error at startup to explain it.
+- **Verify hosting and pricing facts against the web before recommending one.**
+  Free tiers change every few months and this file has already been wrong once:
+  it recommended Hugging Face Spaces, which stopped offering Docker on free
+  accounts in July 2026. The same applies to any fiscal or pricing fact -- recall
+  produced a wrong fiscal year for Snowflake here, caught only by checking
+  filings.
 - **More revisions do not produce better reports.** At `--max-revisions 3` the
   same four companies finished with *more* open issues than at 1 (17 vs 13),
   took 50% longer, and were approved exactly as often: never. All four used
