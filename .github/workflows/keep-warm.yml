@@ -1,0 +1,39 @@
+# Keeps the demo from spinning down, so a recruiter's click loads a page
+# instead of a 30-60 second blank wait.
+#
+# This is not a workaround for the free tier -- it is what the free tier
+# already allows. Render grants 750 instance-hours a month and no month is
+# longer than 744, so one service staying awake fits inside the allowance.
+#
+# GitHub's scheduler is best-effort and runs late under load, so the interval
+# is deliberately well inside the 15-minute idle timeout. If the service still
+# spins down, shorten it rather than adding a second pinger.
+name: Keep the demo warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+# A slow cold start must not pile up overlapping pings.
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        env:
+          DEMO_URL: ${{ secrets.DEMO_URL }}
+        run: |
+          if [ -z "$DEMO_URL" ]; then
+            echo "DEMO_URL secret is not set; nothing to ping."
+            exit 0
+          fi
+          # --max-time 90 because a cold start is exactly when this fires and
+          # exactly when the response is slowest.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 90 "$DEMO_URL/api/health")
+          echo "GET $DEMO_URL/api/health -> $code"
+          [ "$code" = "200" ]

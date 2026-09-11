@@ -1,0 +1,30 @@
+# Render blueprint. `render.yaml` in the repo root means the service can be
+# recreated from source rather than from remembered dashboard clicks.
+services:
+  - type: web
+    name: multi-agent-research
+    runtime: docker
+    plan: free
+    region: oregon
+
+    # A free service spins down after 15 minutes idle and takes 30-60s to come
+    # back. The allowance is 750 instance-hours a month and no month is longer
+    # than 744, so keeping it awake costs nothing that is not already paid for
+    # -- see .github/workflows/keep-warm.yml.
+    healthCheckPath: /api/health
+
+    # One instance, always. Job state lives in the process, so a second replica
+    # would answer polls for reports it has never heard of.
+    numInstances: 1
+
+    envVars:
+      # Serve the saved reports to everyone; gate only what spends credits.
+      - key: MAS_ACCESS
+        value: gallery
+
+      # sync: false means "ask me in the dashboard, never store it here".
+      # Both are secrets and neither belongs in a file that is committed.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MAS_ACCESS_CODE
+        sync: false

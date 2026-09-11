@@ -1,14 +1,3 @@
----
-title: Multi-Agent Research
-emoji: 🔎
-colorFrom: green
-colorTo: gray
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Four agents research, write and fact-check a market report
----
-
 # Multi-Agent Orchestration System
 
 Four specialised agents collaborate to produce a market research report. Built on
@@ -124,8 +113,9 @@ visible rather than merely counted.
 
 ## Deploying it
 
-One image for every target — Hugging Face Spaces, Lightsail, EC2, Fargate all
-run a container and pass a port, so the platform stays a deploy-time choice:
+One image for every target — Render, Lightsail, EC2, Fargate and Hugging Face
+Spaces all run a container and pass a port, so the platform stays a deploy-time
+choice rather than something baked into the code:
 
 ```bash
 docker build -t mas .
@@ -134,6 +124,20 @@ docker run -p 7860:7860 \
   -e MAS_ACCESS=gallery -e MAS_ACCESS_CODE=your-code \
   mas
 ```
+
+[render.yaml](render.yaml) deploys it to Render's free tier: point a Blueprint
+at the repo and it asks for the two secrets rather than storing them anywhere.
+
+**The free tier spins down after 15 minutes idle**, and a 30–60 second cold
+start is fatal for a link someone clicks once — they see nothing and close the
+tab. [A scheduled ping](.github/workflows/keep-warm.yml) keeps it awake. That is
+not a workaround: the allowance is 750 instance-hours a month and no month is
+longer than 744, so one service staying up fits inside what is already granted.
+Set a `DEMO_URL` repository secret to the deployed URL to turn it on.
+
+Hugging Face Spaces needs a PRO plan as of July 2026 — the Docker SDK is no
+longer available on free accounts, and new free accounts cannot select CPU
+Basic. The image runs there unchanged if you have one.
 
 **Keep it to one instance.** Job state is in-process, so a second replica would
 answer polls for jobs it has never heard of. No load balancer, no autoscaling,
