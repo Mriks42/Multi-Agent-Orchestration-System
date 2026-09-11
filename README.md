@@ -200,6 +200,16 @@ $500 billion") instead of asserting them, the Reviewer treats a flatly stated
 unsourced figure as a blocker, and every report carries a Provenance footer
 counting what is actually backed by a source.
 
+**A report that ships unapproved says so on its face.** The revision budget runs
+out and the draft is published with the Reviewer's objections unresolved — which
+is the honest behaviour, since more revisions do not converge. What was not
+honest was the artifact: a polished document whose Provenance footer read "12 of
+12 findings are backed by a retrieved source" while the fact-checker had raised
+two blockers against it, visible only as a log line that scrolled past. The
+verdict now travels with the report, listing every blocking and major issue left
+open, alongside the caveat that review is against the findings and not against
+reality. Approval is rare by design; a reader should be told, not left to assume.
+
 **Concurrency is a reducer, not a lock.** Parallel `write_section` branches
 each return a single-key dict, and `merge_sections` combines them. No branch can
 see or clobber another's work, so there is nothing to synchronise — the same
@@ -286,7 +296,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-234 tests covering the routing table, the revision loop, budget exhaustion,
+244 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
 judge's bias controls, the HTTP API, and that every command still imports and
@@ -359,6 +369,7 @@ tests/
   test_agents.py        per-agent behaviour with fakes
   test_provenance.py    unsourced findings never read as verified fact
   test_figures.py       figure parsing, rounding tolerance, what must not flag
+  test_review_footer.py published verdict, idempotent stamping, metric isolation
   test_graph.py         full graph end to end, fan-out, revision loop
   test_broker.py        atomic claims, leases, retries, idempotency
   test_distributed.py   workers, crash recovery, two real subprocesses

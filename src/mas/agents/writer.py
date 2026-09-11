@@ -116,6 +116,71 @@ def _render(outline, sections: dict[str, str], findings) -> str:
     return "\n".join(parts).strip() + "\n"
 
 
+REVIEW_HEADING = "## Review status"
+
+_REVIEW_CAVEAT = (
+    "The Reviewer checks this draft against the findings above, not against "
+    "reality. A figure that research collected wrongly can still pass review."
+)
+
+
+def review_footer(review) -> str:
+    """Render the review verdict for publication.
+
+    The report ships whether or not the Reviewer signed off -- the revision
+    budget runs out and the draft is published with its objections unresolved.
+    Until this existed, none of that reached the artifact: the reader got a
+    polished document whose Provenance footer said every finding was sourced,
+    with no indication that the fact-checker had raised blockers against it.
+    That is the project's own central failure one level up -- an artifact that
+    reads as more trustworthy than it is -- so the verdict travels with the
+    report rather than scrolling past in a log line.
+    """
+    parts = ["---", "", REVIEW_HEADING, ""]
+
+    if review is None:
+        parts += ["This report was not reviewed.", "", _REVIEW_CAVEAT]
+        return "\n".join(parts)
+
+    serious = [i for i in review.issues if i.severity in ("blocker", "major")]
+    minor = len(review.issues) - len(serious)
+
+    if review.approved:
+        parts.append("**Approved.** The Reviewer raised no blocking or major issues.")
+    else:
+        blockers = sum(1 for i in serious if i.severity == "blocker")
+        parts.append(
+            f"**Published with {len(review.issues)} unresolved issue(s)** "
+            f"({blockers} blocker, {len(serious) - blockers} major"
+            + (f", {minor} minor" if minor else "")
+            + "). The Reviewer did not sign off on this draft."
+        )
+
+    if serious:
+        parts.append("")
+        parts += [
+            f"- **{i.severity}** — {i.section or 'report'}: {i.problem.strip()}"
+            for i in serious
+        ]
+
+    parts += ["", _REVIEW_CAVEAT]
+    return "\n".join(parts)
+
+
+def stamp_review(draft: str, review) -> str:
+    """Append the review verdict to a finished draft, exactly once.
+
+    Applied after the graph rather than inside `assemble`, because assemble runs
+    *before* the review that judges what it produced -- the final verdict does
+    not exist until the run is over. It lands after the Provenance section so
+    that `_body()` in the eval metrics continues to exclude it: the disclosure
+    is apparatus, not report prose, and must not move a metric.
+    """
+    if not draft or REVIEW_HEADING in draft:
+        return draft
+    return draft.rstrip() + "\n\n" + review_footer(review) + "\n"
+
+
 def _issues_for(heading: str, issues: list[Issue]) -> list[Issue]:
     """Issues naming this section, plus report-wide ones that name no section."""
     return [i for i in issues if i.section == heading or not i.section]

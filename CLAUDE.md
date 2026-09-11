@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 234 tests, all offline — no API key needed
+pytest                          # 244 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -134,11 +134,17 @@ is about ten minutes of their clicking once the config exists.
     that research collected is a figure the check will happily approve. This
     also rules out `--no-search` as an adversarial test of it: the writer takes
     its figures from the invented findings, so they match and pass.
-- **No report has ever been approved** -- 0 of 12 in the full suite, every run.
-  Largely downstream of the above: the reviewer keeps finding invented figures
-  and is right to. Worth knowing that approval also requires no *major* issues,
-  so a single substantive gap blocks a report; that bar is a judgement call
-  rather than a bug.
+- **No report has ever been approved** -- 0 of 12 in the full suite, every run,
+  and 0 of 13 counting the live Shopify run of 2026-09-10. Largely downstream of
+  the above: the reviewer keeps finding invented figures and is right to. Worth
+  knowing that approval also requires no *major* issues, so a single substantive
+  gap blocks a report; that bar is a judgement call rather than a bug.
+  Do not chase this number -- the way to move it is to lower the bar. What was
+  worth fixing was the *disclosure*: the published report now carries a Review
+  status block stating that it shipped unapproved and listing what is still
+  open (`stamp_review` in `agents/writer.py`). Note that `check_figures` raises
+  `major`, so it can only push approval further away; that is the intended
+  trade, and the reason approval rate is not a goal.
 - **Severity assignment is inconsistent.** Redundancy has been seen labelled
   "blocker" when the prompt reserves that for factual errors. A real run,
   though, produced only genuine fabrications as blockers -- so this is

@@ -27,6 +27,7 @@ from .agents import (
     make_reviewer_node,
     make_write_section_node,
     plan_sections,
+    stamp_review,
 )
 from .deps import Deps
 from .state import ReportState, initial_state
@@ -208,4 +209,9 @@ def run_report(
             if "sections" in update:
                 merged["sections"] = {**final.get("sections", {}), **update["sections"]}
             final = merged
+
+    # The verdict is stamped here, not in `assemble`, because assemble runs
+    # before the review that judges it. Every caller -- CLI, web and evals --
+    # comes through this function, so the published artifact always carries it.
+    final["draft"] = stamp_review(final.get("draft", ""), final.get("review"))
     return final

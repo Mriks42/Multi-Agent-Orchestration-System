@@ -75,7 +75,14 @@ class Metrics:
 
 
 def _body(draft: str) -> str:
-    """The report without its Provenance footer, which is generated, not written."""
+    """The report without its generated footers.
+
+    Everything from the Provenance heading onward is apparatus: the provenance
+    counts, and the review verdict stamped on at publication. Neither is prose
+    the Writer produced, and the review block quotes the Reviewer verbatim --
+    so an issue mentioning "[1]" would read as a citation to any metric scanning
+    the raw draft. Every metric therefore measures this, not `draft`.
+    """
     return draft.split("\n---\n\n## Provenance")[0]
 
 
@@ -122,16 +129,16 @@ def score_run(state, duration_s: float = 0.0, error: str = "") -> Metrics:
     review = state.get("review")
     body = _body(draft)
 
-    cited = {int(m.group(1)) for m in _CITATION.finditer(draft)}
+    cited = {int(m.group(1)) for m in _CITATION.finditer(body)}
 
     return Metrics(
         company=state.get("company", ""),
         quarter=state.get("quarter", ""),
         sourced_finding_rate=round(sourced_finding_rate(findings), 3),
-        orphan_citation_count=orphan_citations(draft, sources),
+        orphan_citation_count=orphan_citations(body, sources),
         unattributed_figure_count=unattributed_figures(draft),
         provenance_footer="## Provenance" in draft,
-        citation_count=len(_CITATION.findall(draft)),
+        citation_count=len(_CITATION.findall(body)),
         cited_section_rate=round(cited_section_rate(draft), 3),
         distinct_sources_cited=len(cited),
         approved=bool(review and review.approved),
