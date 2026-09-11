@@ -342,3 +342,31 @@ def test_an_ambiguous_period_is_still_allowed_to_run(client):
     """The warning informs the user; it must not become a gate."""
     res = client.post("/api/reports", json={"company": "Nvidia", "quarter": "Q1 2025"})
     assert res.status_code == 202
+
+
+def test_the_page_is_given_the_evidence_not_just_its_count(client):
+    """Counting provenance is not showing it: which finding is unsourced?"""
+    job_id = client.post("/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}).json()["id"]
+    body = wait_for(client, job_id)
+
+    findings = body["findings"]
+    assert len(findings) == 2, "the scripted research returns two findings"
+
+    sourced = [f for f in findings if f["source_ids"]]
+    unsourced = [f for f in findings if not f["source_ids"]]
+    assert len(sourced) == 1 and len(unsourced) == 1
+    assert "Headcount" in unsourced[0]["claim"], "the unsourced one is identifiable"
+    assert body["provenance"] == {"sourced": 1, "total": 2, "unsourced": 1}
+
+
+def test_sources_keep_the_indices_the_report_cites(client):
+    """The report says [0]; sources[0] must be that source, so order is kept."""
+    job_id = client.post("/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}).json()["id"]
+    body = wait_for(client, job_id)
+
+    assert body["sources"], "a run with search results must expose them"
+    assert body["sources"][0]["title"] == SOURCE.title
+    assert body["sources"][0]["url"] == SOURCE.url
+
+    cited = {i for f in body["findings"] for i in f["source_ids"]}
+    assert all(i < len(body["sources"]) for i in cited), "every cited index resolves"

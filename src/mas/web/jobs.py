@@ -65,6 +65,16 @@ class Job:
     approved: bool = False
     open_issues: list[str] = field(default_factory=list)
 
+    findings: list[dict] = field(default_factory=list)
+    sources: list[dict] = field(default_factory=list)
+    """The evidence, so provenance can be checked rather than only counted.
+
+    The footer said "8 of 9 findings are backed by a retrieved source" without
+    saying which one was not, and the report's [6] pointed at a source the
+    reader had no way to look up. A provenance claim nobody can follow is a
+    number to be taken on trust, which is the opposite of the point.
+    """
+
     def as_dict(self) -> dict:
         return {
             "id": self.id,
@@ -88,6 +98,8 @@ class Job:
                 # The number a reader should see before trusting any figure.
                 "unsourced": max(self.total_findings - self.sourced, 0),
             },
+            "findings": self.findings,
+            "sources": self.sources,
             "approved": self.approved,
             "open_issues": self.open_issues,
         }
@@ -202,5 +214,20 @@ def run_job(store: JobStore, job: Job, deps, max_revisions: int | None = None) -
         open_issues=[
             f"[{i.severity}] {i.section or 'report'}: {i.problem}"
             for i in (review.issues if review and not review.approved else [])
+        ],
+        findings=[
+            {
+                "claim": f.claim,
+                "topic": f.topic,
+                "confidence": f.confidence,
+                "source_ids": list(f.source_ids),
+            }
+            for f in findings
+        ],
+        # Indices matter: they are what the report's [n] markers point at, so
+        # the list is sent in order and never filtered.
+        sources=[
+            {"title": s.title, "url": s.url}
+            for s in (state.get("sources", []) or [])
         ],
     )

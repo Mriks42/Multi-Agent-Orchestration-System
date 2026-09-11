@@ -104,6 +104,13 @@ alone takes about three.
 The page also shows the provenance count and any unresolved reviewer issues
 above the report, so a reader sees what is unverified before they read a figure.
 
+Underneath sits the evidence itself: every finding with the sources backing it,
+every source as a link, numbered to match the `[n]` markers in the text. The
+count alone was a number to be taken on trust — "8 of 9 findings are backed by
+a retrieved source" does not say *which* one is not, and a citation nobody can
+follow proves nothing. Unsourced findings are marked in place, so the gap is
+visible rather than merely counted.
+
 ## Running it distributed
 
 Section writing can run in separate worker processes instead of threads. No
@@ -313,7 +320,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-260 tests covering the routing table, the revision loop, budget exhaustion,
+262 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the

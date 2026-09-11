@@ -194,6 +194,54 @@
   }
   .err { color: var(--bad); padding: 18px 22px; }
 
+  /* ----------------------------------------------------- the evidence */
+  .ev { padding: 16px 22px; }
+  .ev summary {
+    cursor: pointer; font-size: 13px; font-weight: 620; color: var(--dim);
+    list-style: none; display: flex; align-items: center; gap: 7px;
+  }
+  .ev summary::-webkit-details-marker { display: none; }
+  .ev summary::before {
+    content: ""; width: 0; height: 0; border-left: 5px solid var(--faint);
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+    transition: transform .15s;
+  }
+  .ev[open] summary::before { transform: rotate(90deg); }
+  .ev summary:hover { color: var(--accent); }
+  .ev summary .warnish { color: var(--warn); }
+  .evbody { margin-top: 16px; }
+  .evhead {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--faint); font-weight: 700; margin: 20px 0 9px;
+  }
+  .evhead:first-child { margin-top: 0; }
+  .claims, .srcs { margin: 0; padding: 0; list-style: none; }
+  .claims li {
+    font-size: 13.5px; line-height: 1.55; padding: 9px 0;
+    border-top: 1px solid var(--line-soft); color: var(--dim);
+  }
+  .claims li:first-child { border-top: 0; }
+  .claims li.norefs { color: var(--warn); }
+  .ref, .idx {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    vertical-align: super; text-decoration: none; margin-left: 2px;
+  }
+  .ref:hover { text-decoration: underline; }
+  .ref.missing { color: var(--bad); }
+  .unsourced {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--warn); font-weight: 700; background: var(--warn-soft);
+    padding: 2px 7px; border-radius: 4px; margin-left: 4px; white-space: nowrap;
+  }
+  .srcs li {
+    font-size: 13px; padding: 7px 0; border-top: 1px solid var(--line-soft);
+    color: var(--dim); overflow-wrap: anywhere;
+  }
+  .srcs li:first-child { border-top: 0; }
+  .srcs .idx { vertical-align: baseline; margin-right: 6px; color: var(--faint); }
+  .srcs a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .srcs a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
   /* ------------------------------------------------------- the report */
   article { font-family: var(--serif); font-size: 16.5px; line-height: 1.68; }
   article h1 {
@@ -441,6 +489,45 @@ function markdown(md) {
   }).join("");
 }
 
+// The evidence behind the report. Counting provenance is not the same as
+// showing it: "8 of 9 findings are backed by a source" is a number to be taken
+// on trust until you can see which one is not, and follow [6] to a real URL.
+function evidence(job) {
+  const findings = job.findings || [];
+  const sources = job.sources || [];
+  if (!findings.length && !sources.length) return "";
+
+  const unsourced = findings.filter(f => !(f.source_ids || []).length).length;
+  const rows = findings.map(f => {
+    const ids = f.source_ids || [];
+    const refs = ids.length
+      ? ids.map(n => sources[n]
+          ? `<a class="ref" href="${esc(sources[n].url)}" target="_blank" rel="noopener">[${n}]</a>`
+          : `<span class="ref missing">[${n}]</span>`).join("")
+      : `<span class="unsourced">unsourced</span>`;
+    return `<li${ids.length ? "" : ' class="norefs"'}>` +
+      `<span class="claim">${esc(f.claim)}</span> ${refs}</li>`;
+  }).join("");
+
+  const list = sources.map((s, n) =>
+    `<li><span class="idx">[${n}]</span> ` +
+    (s.url
+      ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`
+      : `${esc(s.title || "untitled")} <span class="unsourced">no link</span>`) +
+    `</li>`).join("");
+
+  const count = `Evidence &mdash; ${findings.length} finding(s)` +
+    (unsourced ? `, <b class="warnish">${unsourced} unsourced</b>` : ``) +
+    `, ${sources.length} source(s)`;
+
+  return `<details class="card ev"><summary>${count}</summary><div class="evbody">` +
+    `<div class="evhead">Findings the report was written from</div>` +
+    `<ul class="claims">${rows}</ul>` +
+    `<div class="evhead">Sources &mdash; the numbers the report cites</div>` +
+    `<ul class="srcs">${list}</ul>` +
+    `</div></details>`;
+}
+
 function render(job) {
   if (job.status === "failed") return renderError(job.error || "The run failed.");
 
@@ -484,7 +571,8 @@ function render(job) {
       html += `<div style="margin-top:10px">` +
         job.open_issues.map(i => `<div class="issue">${esc(i)}</div>`).join("") + `</div>`;
     }
-    html += `</div><div class="card report"><article>${markdown(job.report)}</article></div>`;
+    html += `</div>` + evidence(job) +
+      `<div class="card report"><article>${markdown(job.report)}</article></div>`;
   }
 
   out.innerHTML = html;
