@@ -111,6 +111,49 @@ a retrieved source" does not say *which* one is not, and a citation nobody can
 follow proves nothing. Unsourced findings are marked in place, so the gap is
 visible rather than merely counted.
 
+## Deploying it
+
+One image for every target — Hugging Face Spaces, Lightsail, EC2, Fargate all
+run a container and pass a port, so the platform stays a deploy-time choice:
+
+```bash
+docker build -t mas .
+docker run -p 7860:7860 \
+  -e OPENAI_API_KEY=sk-... \
+  -e MAS_ACCESS=gallery -e MAS_ACCESS_CODE=your-code \
+  mas
+```
+
+**Keep it to one instance.** Job state is in-process, so a second replica would
+answer polls for jobs it has never heard of. No load balancer, no autoscaling,
+no `--workers`. That is a real limit, not an oversight — `SqliteBroker` is the
+upgrade path if it ever needs to outlive a process.
+
+**Lambda and anything serverless is out.** A report takes 25–40s on a background
+thread and the submit and the first poll are different requests; API Gateway
+times out at 29s and nothing guarantees the poll reaches the same container.
+
+### Who may spend the key
+
+A public URL is an open invitation to spend your OpenAI credits at ~25 calls a
+report. The answer is not to lock the door — a page that shows a stranger
+nothing is a worse link than no link — so the default serves **real saved
+reports** to everyone and gates only the part that costs money.
+
+| `MAS_ACCESS` | anyone can | a code unlocks |
+| --- | --- | --- |
+| `gallery` *(default)* | read saved reports, with their evidence and open issues | running a new company |
+| `locked` | nothing | everything |
+| `open` | run anything | — |
+
+`gallery` and `locked` refuse to start without `MAS_ACCESS_CODE`, rather than
+falling back to open: a deployment that exposed the key because a variable was
+misspelled is the exact failure the setting exists to prevent.
+
+The saved reports in [gallery/](gallery/) are genuine runs kept whole —
+timings, fan-out, evidence, and the reviewer's unresolved objections. A gallery
+showing only the flattering parts would be a worse advertisement than none.
+
 ## Running it distributed
 
 Section writing can run in separate worker processes instead of threads. No
@@ -320,7 +363,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-262 tests covering the routing table, the revision loop, budget exhaustion,
+277 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
@@ -378,6 +421,8 @@ src/mas/
     ablate_cli.py       `mas-ablate` entry point
   web/
     app.py              FastAPI submit-and-poll API
+    access.py           who may spend the key: gallery / locked / open
+    gallery.py          saved reports served to visitors without a code
     jobs.py             in-process job store, progress per agent
     index.html          the page
     cli.py              `mas-serve` entry point
@@ -393,6 +438,7 @@ tests/
   test_routing.py       the revise/publish decision table
   test_agents.py        per-agent behaviour with fakes
   test_provenance.py    unsourced findings never read as verified fact
+  test_access.py        access modes, the code check, misconfiguration
   test_figures.py       figure parsing, rounding tolerance, what must not flag
   test_review_footer.py published verdict, idempotent stamping, metric isolation
   test_graph.py         full graph end to end, fan-out, revision loop

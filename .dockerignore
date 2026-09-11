@@ -1,0 +1,25 @@
+# The key must never reach an image layer. It is gitignored too, but a build
+# context is not a git clone -- .env sits in the directory whether git tracks
+# it or not, and a COPY would bake it in permanently.
+.env
+.env.*
+!.env.example
+
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Test-only, and they would pull pytest into a runtime image.
+tests/
+
+# Run artefacts: queue files, checkpoints, generated reports.
+mas-queue.db*
+mas-runs.db*
+reports/*.md
+
+# Eval results are large and the deployed app never reads them. `gallery/` is
+# the curated set the app does serve, and is copied in deliberately.
+evals/

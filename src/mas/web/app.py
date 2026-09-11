@@ -8,10 +8,11 @@ spinner would hide the whole architecture behind a blank wait.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Cookie, FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,8 @@ from ..config import load_settings
 from ..deps import Deps
 from ..llm import MissingAPIKey
 from ..period import InvalidPeriod, ambiguity_warning, validate
+from . import gallery as gallery_store
+from .access import COOKIE, Access
 from .jobs import JobStore, run_job
 
 log = logging.getLogger(__name__)
@@ -32,14 +35,31 @@ class ReportRequest(BaseModel):
     focus: str = Field(default="", max_length=200)
 
 
+class Unlock(BaseModel):
+    """Module level, not nested in `create_app`.
+
+    This file uses `from __future__ import annotations`, so FastAPI resolves
+    the body type by name against module globals. A class defined inside the
+    factory is invisible there, and the route silently degrades to treating the
+    body as a query parameter -- every request answering 422.
+    """
+
+    code: str = Field(min_length=1, max_length=200)
+
+
 def create_app(deps: Deps | None = None, store: JobStore | None = None,
-               max_revisions: int | None = None) -> FastAPI:
+               max_revisions: int | None = None, access: Access | None = None,
+               gallery: dict | None = None) -> FastAPI:
     """Build the app. `deps` and `store` are injectable so tests need no API key."""
     app = FastAPI(title="Multi-Agent Research", docs_url="/api/docs")
     app.state.store = store or JobStore()
     app.state.deps = deps
     app.state.max_revisions = max_revisions
     app.state.deps_lock = threading.Lock()
+    # Default to open locally: a developer running mas-serve should not need to
+    # invent an access code. Deployment sets MAS_ACCESS explicitly.
+    app.state.access = access or Access(mode=os.getenv("MAS_ACCESS", "open"))
+    app.state.gallery = gallery_store.load() if gallery is None else gallery
 
     def get_deps() -> Deps:
         """Build Deps once, on first use, so an absent API key fails per-request."""
@@ -62,6 +82,33 @@ def create_app(deps: Deps | None = None, store: JobStore | None = None,
             "jobs": len(app.state.store.recent(limit=1000)),
         }
 
+    @app.get("/api/access")
+    def access_state(mas_access: str | None = Cookie(default=None)) -> dict:
+        """What this visitor may do, and what the page should therefore show."""
+        state = app.state.access.describe(mas_access)
+        state["gallery"] = gallery_store.index(app.state.gallery)
+        return state
+
+    @app.post("/api/access")
+    def unlock(request: Unlock, response: Response) -> dict:
+        """Exchange a correct code for a cookie. Wrong codes say so plainly."""
+        if not app.state.access.check(request.code):
+            raise HTTPException(status_code=403, detail="That code is not right.")
+        # httponly: the code is not something page scripts ever need to read.
+        response.set_cookie(
+            COOKIE, request.code, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30
+        )
+        return app.state.access.describe(request.code)
+
+    @app.get("/api/gallery/{slug}")
+    def gallery_entry(slug: str, mas_access: str | None = Cookie(default=None)) -> dict:
+        if not app.state.access.may_view(mas_access):
+            raise HTTPException(status_code=403, detail="An access code is required.")
+        entry = app.state.gallery.get(slug)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="No such saved report")
+        return entry
+
     @app.get("/api/period-check")
     def period_check(company: str = "", quarter: str = "") -> dict:
         """Whether this company and period name two different quarters.
@@ -73,7 +120,16 @@ def create_app(deps: Deps | None = None, store: JobStore | None = None,
         return {"warning": ambiguity_warning(company, quarter)}
 
     @app.post("/api/reports", status_code=202)
-    def submit(request: ReportRequest, background: BackgroundTasks) -> dict:
+    def submit(request: ReportRequest, background: BackgroundTasks,
+               mas_access: str | None = Cookie(default=None)) -> dict:
+        # The only route that spends money, so the only one that is gated.
+        if not app.state.access.may_run(mas_access):
+            raise HTTPException(
+                status_code=403,
+                detail="Running a new report needs an access code. "
+                       "The saved reports below are real runs of this pipeline.",
+            )
+
         try:
             validate(request.quarter)
         except InvalidPeriod as exc:

@@ -8,6 +8,8 @@ import sys
 
 from dotenv import load_dotenv
 
+from .access import MODES
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -22,6 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
              "the revision loop entirely -- the budget is spent by the time the "
              "Reviewer first speaks, so its objections publish unfixed.",
     )
+    parser.add_argument(
+        "--access", choices=MODES, default=None,
+        help="Who may spend the API key. 'open' (the local default) lets anyone "
+             "run a report; 'gallery' serves saved reports to everyone and needs "
+             "a code to run a new one; 'locked' needs a code for anything. "
+             "Defaults to $MAS_ACCESS, else open. Deployments should set this.",
+    )
     parser.add_argument("--reload", action="store_true", help="Reload on code changes")
     return parser
 
@@ -33,11 +42,19 @@ def main(argv: list[str] | None = None) -> int:
 
     import uvicorn
 
+    from .access import Access, Misconfigured
     from .app import create_app
+
+    try:
+        access = Access(mode=args.access) if args.access else None
+    except Misconfigured as exc:
+        # Refuse to start rather than silently serving an ungated key.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     print(f"  http://{args.host}:{args.port}")
     uvicorn.run(
-        create_app(max_revisions=args.max_revisions),
+        create_app(max_revisions=args.max_revisions, access=access),
         host=args.host, port=args.port, log_level="warning",
     )
     return 0

@@ -194,6 +194,25 @@
   }
   .err { color: var(--bad); padding: 18px 22px; }
 
+  /* -------------------------------------------------------- the gate */
+  .gate { padding: 18px 22px; }
+  .gatelead { font-size: 13.5px; color: var(--dim); line-height: 1.6; }
+  .gatelead b { color: var(--fg); font-weight: 640; }
+  .unlockform { display: flex; gap: 8px; align-items: center; margin: 14px 0 0; flex-wrap: wrap; }
+  .unlockform input { flex: 0 1 200px; padding: 9px 12px; }
+  .unlockform button { padding: 9px 18px; }
+  .codeerr { font-size: 12.5px; color: var(--bad); }
+  .savedlist { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+  .saved {
+    display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
+    text-align: left; padding: 11px 13px; border-radius: 9px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--line); box-shadow: none;
+    font: inherit; color: var(--fg);
+  }
+  .saved:hover { border-color: var(--accent); filter: none; }
+  .savedname { font-size: 13.5px; font-weight: 620; }
+  .savedmeta { font-size: 11.5px; color: var(--faint); font-weight: 400; }
+
   /* ----------------------------------------------------- the evidence */
   .ev { padding: 16px 22px; }
   .ev summary {
@@ -359,6 +378,8 @@
 
   <div id="ambiguity" class="ambiguity" hidden></div>
 
+  <div id="gate" hidden></div>
+
   <div id="out"></div>
 
   <footer>
@@ -489,6 +510,73 @@ function markdown(md) {
   }).join("");
 }
 
+// ------------------------------------------------------------- access
+// A visitor without a code gets the saved reports rather than a locked door: a
+// page that shows a stranger nothing is a worse link than no link at all.
+const gateEl = document.getElementById("gate");
+let access = { mode: "open", may_run: true, gallery: [] };
+
+async function loadAccess() {
+  try {
+    const res = await fetch("/api/access");
+    if (!res.ok) return;
+    access = await res.json();
+  } catch { return; }
+
+  btn.disabled = !access.may_run;
+  if (access.mode === "open") { gateEl.hidden = true; return; }
+
+  const rows = (access.gallery || []).map(g =>
+    `<button type="button" class="saved" data-slug="${esc(g.slug)}">` +
+    `<span class="savedname">${esc(g.company)} ${esc(g.quarter)}</span>` +
+    `<span class="savedmeta">${g.sourced}/${g.total} sourced` +
+    (g.open_issues ? ` &middot; ${g.open_issues} open issue(s)` : ``) + `</span></button>`
+  ).join("");
+
+  const lead = access.may_run
+    ? `<b>Unlocked.</b> You can run any company. The saved reports below are earlier runs.`
+    : `<b>Running a new report needs an access code</b>, because each one spends ` +
+      `real API credits. Everything below is a genuine run of this pipeline &mdash; ` +
+      `same agents, same evidence, same unresolved reviewer issues.`;
+
+  gateEl.innerHTML = `<div class="card gate"><div class="gatelead">${lead}</div>` +
+    (access.may_run ? `` :
+      `<form id="unlock" class="unlockform">` +
+      `<input id="code" type="password" placeholder="Access code" autocomplete="off">` +
+      `<button type="submit">Unlock</button>` +
+      `<span id="codeerr" class="codeerr"></span></form>`) +
+    (rows ? `<div class="evhead">Saved reports</div><div class="savedlist">${rows}</div>` : ``) +
+    `</div>`;
+  gateEl.hidden = false;
+
+  const form = document.getElementById("unlock");
+  if (form) form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("codeerr");
+    err.textContent = "";
+    let res;
+    try {
+      res = await fetch("/api/access", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: document.getElementById("code").value }),
+      });
+    } catch { err.textContent = "Could not reach the server."; return; }
+    if (!res.ok) { err.textContent = "That code is not right."; return; }
+    await loadAccess();
+  });
+
+  for (const el of document.querySelectorAll(".saved")) {
+    el.addEventListener("click", async () => {
+      try {
+        const res = await fetch(`/api/gallery/${el.dataset.slug}`);
+        if (!res.ok) return;
+        render(await res.json());
+        out.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch { /* a saved report failing to load is not worth an alert */ }
+    });
+  }
+}
+
 // The evidence behind the report. Counting provenance is not the same as
 // showing it: "8 of 9 findings are backed by a source" is a number to be taken
 // on trust until you can see which one is not, and follow [6] to a real URL.
@@ -577,6 +665,8 @@ function render(job) {
 
   out.innerHTML = html;
 }
+
+loadAccess();
 </script>
 </body>
 </html>
