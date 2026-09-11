@@ -277,6 +277,7 @@ graph against a scripted fake with no network and no API key.
 ## Tests
 
 ```bash
+pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 

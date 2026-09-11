@@ -17,6 +17,11 @@ mas-label = "mas.evals.label_cli:main"
 mas-ablate = "mas.evals.ablate_cli:main"
 mas-serve = "mas.web.cli:main"
 
+[project.optional-dependencies]
+# The suite runs fully offline, but needs pytest itself and httpx, which
+# fastapi.testclient imports. Neither is a runtime dependency.
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
