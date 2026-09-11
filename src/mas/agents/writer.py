@@ -320,7 +320,13 @@ def make_assemble_node(deps: Deps):
         elif complete:
             detail = f"{present} section(s) drafted"
         else:
-            detail = f"{present} of {len(outline.sections)} section(s) drafted"
+            # Names the second wave, so two "Writer Agent" rows in the UI read
+            # as one draft in two stages rather than as a repeated step.
+            remaining = len(outline.sections) - present
+            detail = (
+                f"{present} of {len(outline.sections)} section(s) drafted in parallel; "
+                f"{remaining} summarising section(s) follow"
+            )
 
         log.info("assemble: %s", detail)
         return {

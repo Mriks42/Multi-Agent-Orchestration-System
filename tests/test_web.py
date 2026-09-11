@@ -274,3 +274,55 @@ def test_report_text_is_escaped_before_being_rendered():
 
     assert "esc(b.slice(3))" in page
     assert "esc(b).replace" in page
+
+
+def test_the_page_is_told_which_sections_were_drafted_in_parallel():
+    """The fan-out is the project's subject; a flat step list would hide it."""
+    def handler(schema, messages, model):
+        name = schema.__name__
+        if name == "_Queries":
+            return schema(queries=["q1"])
+        if name == "_Findings":
+            return schema(findings=[Finding(claim="c", topic="t", source_ids=[0])])
+        if name == "Outline":
+            return Outline(title="Acme — Q1 2025", sections=[
+                Section(heading="Financials", purpose="p"),
+                Section(heading="Competition", purpose="p"),
+                Section(heading="Risks", purpose="p"),
+            ])
+        raise AssertionError(name)
+
+    writer = FakeChatModel(
+        handlers={k: handler for k in ("_Queries", "_Findings", "Outline")},
+        text_handler=lambda messages, m: "body [0]",
+    )
+    reviewer = FakeChatModel(handlers={"Review": lambda s, m, mo: Review(approved=True)})
+    client = TestClient(create_app(
+        deps=make_deps(writer, reviewer, search=lambda q, n=5: [SOURCE]),
+        store=JobStore(), max_revisions=1,
+    ))
+
+    job_id = client.post("/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}).json()["id"]
+    body = wait_for(client, job_id)
+
+    writer_steps = [s for s in body["steps"] if s["agent"] == "Writer Agent"]
+    assert writer_steps, "the writer must report at least one wave"
+
+    branched = [s for s in writer_steps if len(s["parallel"]) > 1]
+    assert branched, "no wave reported concurrent branches"
+    assert set(branched[0]["parallel"]) == {"Financials", "Competition", "Risks"}
+
+
+def test_every_step_carries_how_long_its_agent_took():
+    writer, reviewer = build_models()
+    client = TestClient(create_app(
+        deps=make_deps(writer, reviewer, search=lambda q, n=5: [SOURCE]),
+        store=JobStore(), max_revisions=1,
+    ))
+
+    job_id = client.post("/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}).json()["id"]
+    body = wait_for(client, job_id)
+
+    assert body["steps"], "a finished run must have steps"
+    assert all("seconds" in s for s in body["steps"])
+    assert all(s["seconds"] >= 0 for s in body["steps"])

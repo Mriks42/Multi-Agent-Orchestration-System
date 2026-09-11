@@ -213,3 +213,59 @@ def test_the_drafting_waves_do_not_spend_the_revision_budget():
 
     assert state["revision"] == 1
     assert state["review"].approved is True
+
+
+# ------------------------------------------------------- concurrency of fan-out
+
+
+def test_sections_are_drafted_concurrently_not_sequentially():
+    """The README claims 45s -> 24s from the fan-out; this is what backs it.
+
+    Overlap is asserted rather than wall-clock speedup: a loaded machine can
+    make any timing threshold flaky, but two calls being in flight at the same
+    instant cannot happen sequentially no matter how slow the host is.
+    """
+    import threading
+    import time
+
+    lock = threading.Lock()
+    in_flight = 0
+    peak = 0
+
+    def slow_section(messages, model):
+        nonlocal in_flight, peak
+        with lock:
+            in_flight += 1
+            peak = max(peak, in_flight)
+        time.sleep(0.2)
+        with lock:
+            in_flight -= 1
+        return "body"
+
+    def planner(schema, messages, model):
+        name = schema.__name__
+        if name == "_Queries":
+            return schema(queries=["q"])
+        if name == "_Findings":
+            return schema(findings=[Finding(claim="c", topic="t", source_ids=[0])])
+        if name == "Outline":
+            # All body sections: one wave, so the fan-out is what is timed.
+            return Outline(
+                title="T",
+                sections=[Section(heading=f"S{i}", purpose="p") for i in range(4)],
+            )
+        raise AssertionError(name)
+
+    writer = FakeChatModel(
+        handlers={k: planner for k in ("_Queries", "_Findings", "Outline")},
+        text_handler=slow_section,
+    )
+    reviewer = FakeChatModel(handlers={"Review": lambda s, m, mo: Review(approved=True)})
+
+    started = time.time()
+    state = run_report(make_deps(writer, reviewer), "Company X", "Q4", max_revisions=1)
+    elapsed = time.time() - started
+
+    assert len(state["sections"]) == 4
+    assert peak >= 2, f"no two section calls overlapped (peak in flight: {peak})"
+    assert elapsed < 4 * 0.2, "wall clock reached the sequential total"

@@ -80,21 +80,29 @@ case where the right answer was already known.
 mas-serve            # http://127.0.0.1:8000
 ```
 
-Type a company, watch the four agents finish one at a time, read the report.
-A report takes ~25 seconds, so submitting returns a job id and the page polls --
-the same submit-and-poll shape the distributed broker uses, one layer up. A
-spinner would have hidden the pipeline, which is the part worth seeing:
+Type a company, watch the agents work, read the report. A report takes ~25
+seconds, so submitting returns a job id and the page polls -- the same
+submit-and-poll shape the distributed broker uses, one layer up. A spinner would
+have hidden the pipeline, which is the part worth seeing:
 
 ```
-Research Agent   22 sources -> 9 findings
-Planning Agent   Executive Summary | Financial Performance | ...
-Writer Agent     4 of 7 section(s) drafted        <- wave 1, the body sections
-Writer Agent     pass 1, 7 section(s) drafted     <- wave 2, the summary
-Reviewer Agent   changes requested (3 issues, 2 unsupported)
+Research Agent    9.9s  23 sources -> 10 findings
+Planning Agent    5.7s  Executive Summary | Financial Performance | ...
+Writer Agent      3.6s  4 of 7 section(s) drafted in parallel; 3 summarising follow
+                        [4 in parallel: Market Dynamics, Operational Metrics, ...]
+Writer Agent      3.2s  pass 1, 7 section(s) drafted
+                        [3 in parallel: Recommendations, Outlook, Executive Summary]
+Reviewer Agent    2.4s  changes requested (2 issue(s), 2 unsupported)
 ```
 
-The page shows the provenance count and any unresolved reviewer issues above
-the report, so a reader sees what is unverified before they read a figure.
+The branches that ran at once are named, and each agent's time is shown beside
+it, because a flat list of steps reads as a sequence -- it hides the fan-out,
+which is the one thing a page about orchestration should make obvious. The
+numbers make the case on their own: four sections in 3.6s, where one section
+alone takes about three.
+
+The page also shows the provenance count and any unresolved reviewer issues
+above the report, so a reader sees what is unverified before they read a figure.
 
 ## Running it distributed
 
@@ -296,8 +304,9 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-244 tests covering the routing table, the revision loop, budget exhaustion,
+247 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
+that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
 judge's bias controls, the HTTP API, and that every command still imports and
 parses — all offline. One test spawns two real subprocesses to prove the

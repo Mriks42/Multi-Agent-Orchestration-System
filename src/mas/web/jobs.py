@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -36,6 +37,16 @@ class Step:
 
     agent: str
     detail: str
+    seconds: float = 0.0
+    parallel: list[str] = field(default_factory=list)
+    """Sections drafted concurrently in the wave this step completed.
+
+    The page's whole subject is orchestration, and a flat list of steps hides
+    it: a reader cannot tell a fan-out from a sequence. These are the branches
+    that were in flight at once, so the parallelism is shown rather than
+    claimed.
+    """
+
     at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -60,7 +71,15 @@ class Job:
             "company": self.company,
             "quarter": self.quarter,
             "status": self.status,
-            "steps": [{"agent": s.agent, "detail": s.detail} for s in self.steps],
+            "steps": [
+                {
+                    "agent": s.agent,
+                    "detail": s.detail,
+                    "seconds": s.seconds,
+                    "parallel": s.parallel,
+                }
+                for s in self.steps
+            ],
             "report": self.report,
             "error": self.error,
             "provenance": {
@@ -110,11 +129,17 @@ class JobStore:
             for key, value in fields.items():
                 setattr(job, key, value)
 
-    def add_step(self, job_id: str, agent: str, detail: str) -> None:
+    def add_step(
+        self, job_id: str, agent: str, detail: str,
+        seconds: float = 0.0, parallel: list[str] | None = None,
+    ) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is not None:
-                job.steps.append(Step(agent=agent, detail=detail))
+                job.steps.append(
+                    Step(agent=agent, detail=detail, seconds=seconds,
+                         parallel=list(parallel or []))
+                )
 
 
 def run_job(store: JobStore, job: Job, deps, max_revisions: int | None = None) -> None:
@@ -127,12 +152,29 @@ def run_job(store: JobStore, job: Job, deps, max_revisions: int | None = None) -
 
     store.update(job.id, status="running")
 
+    # `write_section` fires once per parallel branch and carries no trace line.
+    # Collecting the headings lets the wave that follows show what ran at once.
+    wave: list[str] = []
+    last = time.monotonic()
+
     def on_event(node: str, update: dict):
+        nonlocal last
+        if node == "write_section":
+            wave.extend(update.get("sections", {}))
+            return
+
         label = AGENT_LABELS.get(node)
         if not label:
-            return  # write_section fires per branch; assemble reports the pass
+            return
+
+        now = time.monotonic()
         for line in update.get("trace", []):
-            store.add_step(job.id, label, line.split(":", 1)[-1].strip())
+            store.add_step(
+                job.id, label, line.split(":", 1)[-1].strip(),
+                seconds=round(now - last, 1), parallel=list(wave),
+            )
+            wave.clear()  # only the first line of a wave owns its branches
+        last = now
 
     try:
         state = run_report(
