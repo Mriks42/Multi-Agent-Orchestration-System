@@ -313,7 +313,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-256 tests covering the routing table, the revision loop, budget exhaustion,
+258 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the

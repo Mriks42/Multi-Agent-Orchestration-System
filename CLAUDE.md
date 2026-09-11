@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 256 tests, all offline — no API key needed
+pytest                          # 258 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -216,7 +216,15 @@ Do not "fix" these without discussing; each was a considered trade-off.
   on a fabricated one. Useful as an alarm, never as a quality score.
 - **No fiscal calendar.** `period.py` insists on a year and warns on companies
   with known offset fiscal years, but a real calendar needs per-company data the
-  project does not have.
+  project does not have. `KNOWN_OFFSET_FISCAL` is a curated list of eleven
+  names, not a database -- any company outside it gets no warning, and there are
+  hundreds. Treat a missing warning as "not checked", never as "calendar year".
+  The list was wrong about the project's own eval suite until 2026-09-10:
+  Snowflake, Zscaler and Braze all run offset years and none were flagged, so
+  **every stored eval before that date asked three of its twelve cases an
+  ambiguous question**. Do not read a period-related result from those runs
+  without allowing for it. A test now pins the eval companies and the web page's
+  suggested examples against the list so the two cannot drift apart again.
 - **Drafting is two waves, and the second one costs a round-trip.** Body
   sections go first in parallel; summarising sections follow with the bodies as
   siblings, so the executive summary can refer to the report instead of

@@ -35,6 +35,12 @@ KNOWN_OFFSET_FISCAL = {
     "broadcom": "fiscal year ends early November",
     "adobe": "fiscal year ends late November",
     "walmart": "fiscal year ends 31 January",
+    # Added after the list was caught being wrong about its own eval set: these
+    # three are cases in `evals/cases.py` and all three run offset years, so
+    # every stored eval has quietly asked them an ambiguous question.
+    "snowflake": "fiscal year ends 31 January",
+    "zscaler": "fiscal year ends 31 July",
+    "braze": "fiscal year ends 31 January",
 }
 
 

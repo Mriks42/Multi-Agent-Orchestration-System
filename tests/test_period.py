@@ -182,3 +182,39 @@ def test_a_period_with_no_year_still_gives_usable_advice():
 
     assert warning, "an offset company should still be flagged"
     assert "Name the basis explicitly" in warning
+
+
+def test_the_suggested_example_companies_are_not_themselves_ambiguous():
+    """The examples exist to avoid the ambiguity, so they must not have it.
+
+    Snowflake shipped as an example for one commit while running a 31 January
+    fiscal year -- exactly the trap the examples were meant to steer around.
+    This reads the page so the two cannot drift apart again.
+    """
+    import re
+    from pathlib import Path
+
+    from mas.period import ambiguity_warning
+
+    page = Path(__file__).resolve().parents[1] / "src" / "mas" / "web" / "index.html"
+    suggested = re.findall(r'class="eg" data-c="([^"]+)"', page.read_text(encoding="utf-8"))
+
+    assert suggested, "the page should offer example companies"
+    for company in suggested:
+        assert ambiguity_warning(company, "Q1 2025") == "", (
+            f"{company} is offered as an example but runs an offset fiscal year"
+        )
+
+
+def test_the_offset_list_covers_the_companies_the_eval_suite_asks_about():
+    """An eval case with a silently ambiguous period is a contaminated case."""
+    from mas.evals.cases import CASES
+    from mas.period import KNOWN_OFFSET_FISCAL
+
+    known_offset = {"nvidia", "microsoft", "snowflake", "zscaler", "braze"}
+    covered = {c.company.lower() for c in CASES} & set(KNOWN_OFFSET_FISCAL)
+
+    assert known_offset <= covered, (
+        f"eval companies running offset fiscal years but not flagged: "
+        f"{sorted(known_offset - covered)}"
+    )
