@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 217 tests, all offline — no API key needed
+pytest                          # 234 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -43,16 +43,13 @@ a lot in cost and in how much of the user's own time they need.
 
 1. **Deploy the UI.** See "Deployment, as far as it got" below -- the options
    are worked out and two decisions are outstanding.
-2. **A mechanical figure check.** The writer still invents figures -- a live
-   Shopify run with 13 sourced findings and 22 sources produced "GMV increased
-   by 38%", which no finding contained. `check_citations` is the proven pattern:
-   deterministic code the model cannot talk itself out of, which took the
-   citation probe from 75% to 100%. Extract numbers from the draft, compare
-   against the findings, flag what appears nowhere. It will false-positive on
-   derived figures ("up 31%" computed from two findings) and format mismatches
-   ("$11.6 billion" vs "$11.6B"), so build the extraction with offline unit
-   tests before wiring it into the reviewer. Expect it to reduce fabrication,
-   not end it.
+2. **Measure what the figure check actually did.** `check_figures` is built and
+   wired in (see below), but its effect on live reports is unmeasured -- the
+   probe result is offline and n=1 by construction. A `mas-eval` run before and
+   after would say whether it moves `unattributed_figure_count` and open issues
+   on real drafts, or just adds noise the writer spends revisions on. Read the
+   resolution note under Traps first: four companies at one run each cannot
+   resolve a small effect, and this may well be one.
 3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
    a run cost?" can only be estimated -- it came up repeatedly.
 4. **Write up the two findings** (see below) somewhere a reader meets them in
@@ -113,7 +110,22 @@ is about ten minutes of their clicking once the config exists.
 ## Known problems, stated plainly
 
 - **The writer invents figures, and the system detects rather than prevents
-  it.** This is the project's central unsolved problem. Item 2 above narrows it.
+  it.** Still the project's central unsolved problem, but narrower than it was.
+  `check_figures` (`agents/figures.py`) parses every material figure -- currency,
+  percentage, magnitude -- out of the draft and matches it against the findings
+  and sources, raising an issue for anything grounded in neither. Against the
+  probe suite with a reviewer that approves everything, the mechanical checks
+  alone now catch 3 of 4 planted defects, up from 1. What it does **not** do:
+  - It cannot tell a derived figure ("up 31%", computed from two findings) from
+    an invented one, which is why it raises "major" and not "blocker", and why
+    the fix text offers the writer the derivation route explicitly.
+  - It says nothing about attribution. A figure can be grounded and still stated
+    too flatly; that is the UNSOURCED rule's job, and the one probe the
+    mechanical checks still miss (`unsourced_stated_as_fact`) is exactly that
+    case -- 4,000 is in the findings, only the wording is wrong.
+  - Only *material* figures are checked. Bare counts, years and quarter labels
+    are skipped deliberately: a false positive costs the writer a revision it
+    needed for a real defect.
 - **No report has ever been approved** -- 0 of 12 in the full suite, every run.
   Largely downstream of the above: the reviewer keeps finding invented figures
   and is right to. Worth knowing that approval also requires no *major* issues,

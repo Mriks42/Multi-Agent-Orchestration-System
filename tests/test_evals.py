@@ -159,11 +159,17 @@ def test_probes_run_against_a_stub_reviewer():
     assert summary["false_positives"] == 1, "the clean control must expose over-flagging"
 
 
-def test_a_permissive_model_still_cannot_pass_an_orphan_citation():
-    """The mechanical citation check does not depend on the model's judgement.
+def test_the_mechanical_checks_hold_up_a_reviewer_that_approves_everything():
+    """What survives when the model's judgement contributes nothing.
 
-    With a reviewer that approves everything, the only probe still caught is the
-    orphan citation — which is the point of checking it in code.
+    Three of the four planted defects are caught in code: the orphan citation,
+    and — since the figure check landed — the fabricated figure and the one
+    contradicting its own source, neither of which appears in the findings.
+
+    The miss is the honest one. `unsourced_stated_as_fact` states 4,000 flatly
+    when the finding says "around 4,000", so the figure *is* grounded and only
+    its attribution is wrong. That is a judgement about wording, which is the
+    model's job; code that flagged it would be guessing.
     """
     def never_flag(schema, messages, model):
         return Review(approved=True, issues=[])
@@ -171,10 +177,9 @@ def test_a_permissive_model_still_cannot_pass_an_orphan_citation():
     model = FakeChatModel(handlers={"Review": never_flag})
     summary = score_probes(run_probes(make_deps(model, reviewer=model)))
 
-    assert summary["false_positives"] == 0
-    assert summary["missed"] == ["fabricated_figure", "contradicted_finding",
-                                 "unsourced_stated_as_fact"]
-    assert "orphan_citation" not in summary["missed"]
+    assert summary["false_positives"] == 0, "the clean control's figures are all grounded"
+    assert summary["missed"] == ["unsourced_stated_as_fact"]
+    assert summary["caught"] == 3
 
 
 def test_probe_errors_are_recorded_not_raised():

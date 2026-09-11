@@ -13,6 +13,7 @@ import re
 from ..deps import Deps
 from ..state import Issue, ReportState, Review
 from .base import ask, format_findings, format_sources
+from .figures import check_figures
 
 log = logging.getLogger(__name__)
 
@@ -108,10 +109,16 @@ def make_reviewer_node(deps: Deps):
         )
 
         # Mechanical checks the model is unreliable at, merged into its verdict.
-        mechanical = check_citations(state.get("draft", ""), state.get("sources", []))
-        if mechanical:
-            verdict.issues = list(verdict.issues) + mechanical
-            log.info("reviewer: %d orphan citation(s) caught mechanically", len(mechanical))
+        draft = state.get("draft", "")
+        orphans = check_citations(draft, state.get("sources", []))
+        if orphans:
+            verdict.issues = list(verdict.issues) + orphans
+            log.info("reviewer: %d orphan citation(s) caught mechanically", len(orphans))
+
+        ungrounded = check_figures(draft, state.get("findings", []), state.get("sources", []))
+        if ungrounded:
+            verdict.issues = list(verdict.issues) + ungrounded
+            log.info("reviewer: %d ungrounded figure(s) caught mechanically", len(ungrounded))
 
         # The model is asked to be consistent here, but the graph's exit
         # condition depends on it, so enforce it rather than trusting it.

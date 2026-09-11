@@ -235,7 +235,12 @@ and grounding as pure functions of the final state — no model, so a number mov
 only when the reports do. Seeded-error probes then plant known defects and check
 the Reviewer catches them; the first run scored 75%, missing a citation to a
 source that did not exist, which is why `check_citations` now verifies indices in
-code. The LLM judge covers what neither can reach — redundancy, purpose fit,
+code. `check_figures` extends the same idea to numbers
+([figures.py](src/mas/agents/figures.py)): every currency amount, percentage and
+magnitude in the draft is parsed and matched against the findings and sources,
+and anything appearing in neither is raised as an issue. Point a reviewer that
+approves everything at the probe suite and the code alone still catches three of
+the four planted defects. The LLM judge covers what neither can reach — redundancy, purpose fit,
 specificity — with its known biases controlled: pairwise comparisons run in both
 orderings and a flipped verdict is scored as a tie, the rubric states outright
 that length is not quality, and the judge is pinned at temperature 0. Its
@@ -281,10 +286,11 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-217 tests covering the routing table, the revision loop, budget exhaustion,
-citation validation, provenance labelling, fan-out dispatch, broker leases and
-retries, crash recovery, checkpoint resume, eval metrics, the judge's bias
-controls, the HTTP API, and that every command still imports and parses — all offline. One test spawns two real subprocesses to prove the
+234 tests covering the routing table, the revision loop, budget exhaustion,
+citation validation, figure grounding, provenance labelling, fan-out dispatch,
+broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
+judge's bias controls, the HTTP API, and that every command still imports and
+parses — all offline. One test spawns two real subprocesses to prove the
 queue coordinates across processes.
 
 ## Validating the judge
@@ -320,6 +326,7 @@ src/mas/
     planning.py         findings -> outline
     writer.py           plan_sections / write_section / assemble
     reviewer.py         fact-checks the draft against the findings
+    figures.py          mechanical check: every figure must trace to the evidence
     base.py             structured + free-text LLM calls, prompt rendering
   tools/
     search.py           DuckDuckGo backend + null backend
@@ -351,6 +358,7 @@ tests/
   test_routing.py       the revise/publish decision table
   test_agents.py        per-agent behaviour with fakes
   test_provenance.py    unsourced findings never read as verified fact
+  test_figures.py       figure parsing, rounding tolerance, what must not flag
   test_graph.py         full graph end to end, fan-out, revision loop
   test_broker.py        atomic claims, leases, retries, idempotency
   test_distributed.py   workers, crash recovery, two real subprocesses
