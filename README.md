@@ -37,19 +37,31 @@ cp .env.example .env                                # then add your OPENAI_API_K
 mas --company "Shopify" --quarter "Q1 2025"
 ```
 
-The report is written to `reports/shopify-q1-2025-<date>.md`. Real output:
+The report is written to `reports/shopify-q1-2025-<date>.md`. A real run:
 
 ```
 Market research report: Shopify — Q1 2025
 draft model gpt-4o-mini | review model gpt-4o | up to 2 revision(s)
 
-  OK Research Agent — 19 sources -> 8 findings
+  OK Research Agent — 23 sources -> 12 findings
   OK Planning Agent — Executive Summary | Financial Performance | Market ...
+  OK Writer Agent — 5 of 7 section(s) drafted in parallel; 2 summarising section(s) follow
   OK Writer Agent — pass 1, 7 section(s) drafted
-  OK Reviewer Agent — changes requested (1 issue(s), 1 unsupported)
-  OK Writer Agent — pass 2, 1 of 7 section(s) revised
-  OK Reviewer Agent — approved (0 issue(s), 0 unsupported)
+  OK Reviewer Agent — changes requested (2 issue(s), 2 unsupported)
+  OK Writer Agent — pass 2, 2 of 7 section(s) revised
+  OK Reviewer Agent — changes requested (2 issue(s), 2 unsupported)
+
+Published with 2 unresolved issue(s) — revision budget was exhausted.
+  ! [blocker] Financial Performance: the draft attributes $74.8bn GMV to the
+    quarter, but the cited source reports it for the trailing twelve months.
 ```
+
+**That ending is the normal one, and it is deliberate.** No report has yet been
+approved: approval requires no blocking *or major* issues, so a single
+substantive gap holds a report back, and the Reviewer keeps finding real ones.
+Lowering that bar would raise the number and teach you nothing. The report ships
+anyway, carrying a Review status footer that says it was published unapproved
+and lists what is still open — a reader is told rather than left to assume.
 
 **Use a real, publicly reporting company.** A fictional name gives the Research
 Agent nothing to find, and the model will invent a company from scratch — the
