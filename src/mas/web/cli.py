@@ -16,8 +16,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
-        "--max-revisions", type=int, default=1,
-        help="Revision passes per report (default 1, to keep a demo responsive)",
+        "--max-revisions", type=int, default=2,
+        help="Complete drafts per report, not revisions (default 2: draft, "
+             "review, revise the flagged sections, review again). 1 disables "
+             "the revision loop entirely -- the budget is spent by the time the "
+             "Reviewer first speaks, so its objections publish unfixed.",
     )
     parser.add_argument("--reload", action="store_true", help="Reload on code changes")
     return parser

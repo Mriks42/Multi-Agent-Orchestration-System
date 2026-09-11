@@ -61,6 +61,52 @@ def validate(period: str) -> str:
     return period
 
 
+# "Q1 FY2025" and "Q1 calendar 2025" are already unambiguous, so saying the
+# period could mean two things would be wrong as well as annoying.
+_EXPLICIT_BASIS = re.compile(r"\b(FY|CY|fiscal|calendar)", re.IGNORECASE)
+
+
+def ambiguity_warning(company: str, period: str) -> str:
+    """A warning for the person asking, when their period names two quarters.
+
+    `fiscal_hint` tells the *model* that a company's year is offset. This tells
+    the *user*, who is the only party that can actually resolve it -- and until
+    it existed, nobody did. A live NVIDIA run for "Q1 2025" drew $26.0bn (fiscal
+    Q1 2025, ending April 2024) and $44.1bn (calendar Q1 2025) from the sources
+    and presented both as the same quarter. Both figures were real and cited;
+    the question was ambiguous and nothing said so.
+
+    Empty when the company keeps a calendar year, or when the period already
+    states its basis.
+    """
+    company = (company or "").strip()
+    period = (period or "").strip()
+
+    if not company or not period:
+        return ""
+
+    note = KNOWN_OFFSET_FISCAL.get(company.lower())
+    if not note or _EXPLICIT_BASIS.search(period):
+        return ""
+
+    lead = (
+        f"{company}'s {note}. So \"{period}\" could mean the fiscal quarter or "
+        f"the calendar one, and they are different periods — for {company} they "
+        f"can be a year apart. "
+    )
+
+    # "Q1 2025" -> "Q1 FY2025", which is how these are actually written. A
+    # period with no year cannot be rewritten this way, but `validate` rejects
+    # that separately, so fall back rather than printing a broken example.
+    if not YEAR.search(period):
+        return lead + 'Name the basis explicitly to say which you mean.'
+
+    return lead + (
+        f'Write "{YEAR.sub(lambda m: "FY" + m.group(0), period)}" or '
+        f'"{YEAR.sub(lambda m: "CY" + m.group(0), period)}" to say which you mean.'
+    )
+
+
 def fiscal_hint(company: str) -> str:
     """A prompt note when a company's fiscal year is offset from the calendar.
 

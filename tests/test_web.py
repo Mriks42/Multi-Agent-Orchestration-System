@@ -326,3 +326,19 @@ def test_every_step_carries_how_long_its_agent_took():
     assert body["steps"], "a finished run must have steps"
     assert all("seconds" in s for s in body["steps"])
     assert all(s["seconds"] >= 0 for s in body["steps"])
+
+
+def test_the_page_can_ask_whether_a_period_is_ambiguous(client):
+    """Advisory endpoint: it warns, it never blocks."""
+    warned = client.get("/api/period-check", params={"company": "Nvidia", "quarter": "Q1 2025"})
+    assert warned.status_code == 200
+    assert "fiscal year" in warned.json()["warning"]
+
+    clear = client.get("/api/period-check", params={"company": "Shopify", "quarter": "Q1 2025"})
+    assert clear.json()["warning"] == ""
+
+
+def test_an_ambiguous_period_is_still_allowed_to_run(client):
+    """The warning informs the user; it must not become a gate."""
+    res = client.post("/api/reports", json={"company": "Nvidia", "quarter": "Q1 2025"})
+    assert res.status_code == 202

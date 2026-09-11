@@ -85,6 +85,20 @@
   article h2:first-of-type { margin-top: 8px; }
   article p { margin: 0 0 13px; }
   article .cite { color: var(--accent); font-size: 12px; vertical-align: super; }
+  /* Calendar-year companies, so the suggested path avoids the fiscal
+     ambiguity the warning below explains. */
+  .examples { display: block; margin-top: 6px; }
+  .eg {
+    font: inherit; font-size: 12.5px; cursor: pointer; margin-right: 4px;
+    padding: 2px 9px; border-radius: 999px; color: var(--accent);
+    background: transparent; border: 1px solid var(--line);
+  }
+  .eg:hover { background: rgba(127, 127, 127, .10); }
+  .ambiguity {
+    border: 1px solid var(--warn); border-left-width: 3px; border-radius: 8px;
+    padding: 11px 14px; margin-bottom: 18px; font-size: 13.5px;
+    color: var(--warn); line-height: 1.5;
+  }
   footer { color: var(--dim); font-size: 13px; margin-top: 36px; }
   code { background: var(--line); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 </style>
@@ -102,7 +116,15 @@
   <p class="hint">
     Use a real, publicly reporting company &mdash; a made-up name gives the research
     agent nothing to find. The period must include a year.
+    <span class="examples">Try
+      <button type="button" class="eg" data-c="Shopify">Shopify</button>
+      <button type="button" class="eg" data-c="Airbnb">Airbnb</button>
+      <button type="button" class="eg" data-c="Datadog">Datadog</button>
+      <button type="button" class="eg" data-c="Snowflake">Snowflake</button>
+    </span>
   </p>
+
+  <div id="ambiguity" class="ambiguity" hidden></div>
 
   <div id="out"></div>
 
@@ -117,6 +139,43 @@ const AGENTS = ["Research Agent", "Planning Agent", "Writer Agent", "Reviewer Ag
 const out = document.getElementById("f").parentElement.querySelector("#out") || document.getElementById("out");
 const btn = document.getElementById("go");
 let timer = null;
+
+// Ask the server whether this company and period name two different quarters.
+// Advisory only: it never blocks the run, it just says so before the credits
+// are spent rather than leaving the contradiction to surface in the report.
+const companyEl = document.getElementById("company");
+const quarterEl = document.getElementById("quarter");
+const ambiguityEl = document.getElementById("ambiguity");
+let checkTimer = null;
+
+async function checkPeriod() {
+  const company = companyEl.value.trim();
+  const quarter = quarterEl.value.trim();
+  if (!company || !quarter) { ambiguityEl.hidden = true; return; }
+  try {
+    const params = new URLSearchParams({ company, quarter });
+    const res = await fetch(`/api/period-check?${params}`);
+    if (!res.ok) return;
+    const { warning } = await res.json();
+    ambiguityEl.textContent = warning || "";
+    ambiguityEl.hidden = !warning;
+  } catch { /* advisory only -- never let this break the form */ }
+}
+
+for (const el of [companyEl, quarterEl]) {
+  el.addEventListener("input", () => {
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(checkPeriod, 300);
+  });
+}
+
+for (const eg of document.querySelectorAll(".eg")) {
+  eg.addEventListener("click", () => {
+    companyEl.value = eg.dataset.c;
+    checkPeriod();
+    companyEl.focus();
+  });
+}
 
 document.getElementById("f").addEventListener("submit", async (e) => {
   e.preventDefault();

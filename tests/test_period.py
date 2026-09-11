@@ -119,3 +119,66 @@ def test_a_first_pass_reports_sections_drafted(sample_outline):
 
     trace = run_writer_pass(make_deps(model), state)["trace"][-1]
     assert "2 section(s) drafted" in trace, trace
+
+
+# ------------------------------------------------- warning the user, not the model
+
+
+def test_an_offset_company_with_a_bare_period_warns_the_user():
+    from mas.period import ambiguity_warning
+
+    warning = ambiguity_warning("Nvidia", "Q1 2025")
+
+    assert "fiscal year ends late January" in warning
+    assert "Q1 2025" in warning
+    assert "FY" in warning and "CY" in warning
+
+
+def test_saying_which_basis_you_meant_silences_the_warning():
+    """"Q1 FY2025" is already unambiguous; warning about it would be wrong."""
+    from mas.period import ambiguity_warning
+
+    assert ambiguity_warning("Nvidia", "Q1 FY2025") == ""
+    assert ambiguity_warning("Nvidia", "Q1 CY2025") == ""
+    assert ambiguity_warning("Nvidia", "fiscal Q1 2025") == ""
+
+
+def test_a_calendar_year_company_never_warns():
+    from mas.period import ambiguity_warning
+
+    assert ambiguity_warning("Shopify", "Q1 2025") == ""
+    assert ambiguity_warning("Airbnb", "Q1 2025") == ""
+
+
+def test_the_warning_ignores_case_and_padding():
+    from mas.period import ambiguity_warning
+
+    assert ambiguity_warning("  nVIDIA  ", "Q1 2025") != ""
+
+
+def test_no_company_or_no_period_is_not_an_error():
+    from mas.period import ambiguity_warning
+
+    assert ambiguity_warning("", "Q1 2025") == ""
+    assert ambiguity_warning("Nvidia", "") == ""
+
+
+def test_the_warning_suggests_a_period_written_the_way_people_write_them():
+    """"Q1 FY2025", not "Q1 2025 FY"."""
+    from mas.period import ambiguity_warning
+
+    warning = ambiguity_warning("Nvidia", "Q1 2025")
+
+    assert '"Q1 FY2025"' in warning
+    assert '"Q1 CY2025"' in warning
+    assert "2025 FY" not in warning
+
+
+def test_a_period_with_no_year_still_gives_usable_advice():
+    """validate() rejects it separately; this must not print a broken example."""
+    from mas.period import ambiguity_warning
+
+    warning = ambiguity_warning("Nvidia", "Q1")
+
+    assert warning, "an offset company should still be flagged"
+    assert "Name the basis explicitly" in warning

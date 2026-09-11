@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from ..config import load_settings
 from ..deps import Deps
 from ..llm import MissingAPIKey
-from ..period import InvalidPeriod, validate
+from ..period import InvalidPeriod, ambiguity_warning, validate
 from .jobs import JobStore, run_job
 
 log = logging.getLogger(__name__)
@@ -61,6 +61,16 @@ def create_app(deps: Deps | None = None, store: JobStore | None = None,
             "reviewer_model": settings.reviewer_model,
             "jobs": len(app.state.store.recent(limit=1000)),
         }
+
+    @app.get("/api/period-check")
+    def period_check(company: str = "", quarter: str = "") -> dict:
+        """Whether this company and period name two different quarters.
+
+        Advisory only -- the run is never blocked on it. The ambiguity is real
+        and the person asking is the only one who can settle it, so the page
+        says so before the credits are spent rather than after.
+        """
+        return {"warning": ambiguity_warning(company, quarter)}
 
     @app.post("/api/reports", status_code=202)
     def submit(request: ReportRequest, background: BackgroundTasks) -> dict:

@@ -274,6 +274,15 @@ mismatch as the first explanation for conflicting figures, and warns on the
 companies whose fiscal year is known to be offset
 ([period.py](src/mas/period.py)).
 
+That warning used to go only to the model, which was half a fix. A live NVIDIA
+run for "Q1 2025" pulled $26.0bn (fiscal Q1 2025, ending April 2024) and
+$44.1bn (calendar Q1 2025) out of the sources and presented both as the same
+quarter — both real, both cited, a year apart. The question was ambiguous and
+the one party who could have resolved it was never told. The web UI now says so
+before the run starts, and suggests the period written the way people write it
+("Q1 FY2025" or "Q1 CY2025"). It is advisory: an ambiguous request still runs,
+because sometimes ambiguous is what you meant.
+
 **The judge is validated against a person, or its scores are not quoted.**
 `mas-label` shows you two reports blind, records which you prefer, then replays
 the judge over the same pairs and reports agreement. Below ten labels it refuses
@@ -304,7 +313,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-247 tests covering the routing table, the revision loop, budget exhaustion,
+256 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
