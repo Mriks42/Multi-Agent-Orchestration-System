@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 316 tests, all offline — no API key needed
+pytest                          # 319 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -352,6 +352,11 @@ Do not "fix" these without discussing; each was a considered trade-off.
   project does not have. `KNOWN_OFFSET_FISCAL` is a curated list of eleven
   names, not a database -- any company outside it gets no warning, and there are
   hundreds. Treat a missing warning as "not checked", never as "calendar year".
+  MongoDB was added on 2026-09-24 after a live run asked it for "Q1 2025" and
+  got no warning: its Q1 FY2025 is the quarter ended 30 April 2024, so the
+  calendar reading is a year out. Verified against the filings. That is the
+  gap working as designed rather than a bug -- the list only knows what it has
+  been told -- but it is worth adding a name each time one is found.
   The list was wrong about the project's own eval suite until 2026-09-10:
   Snowflake, Zscaler and Braze all run offset years and none were flagged, so
   **every stored eval before that date asked three of its twelve cases an

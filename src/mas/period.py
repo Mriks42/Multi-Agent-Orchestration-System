@@ -41,6 +41,10 @@ KNOWN_OFFSET_FISCAL = {
     "snowflake": "fiscal year ends 31 January",
     "zscaler": "fiscal year ends 31 July",
     "braze": "fiscal year ends 31 January",
+    # Added after a live run asked MongoDB for "Q1 2025" and got no warning.
+    # Verified against the filings, not recalled: MongoDB's Q1 FY2025 is the
+    # quarter ended 30 April 2024, so the calendar reading is a year out.
+    "mongodb": "fiscal year ends 31 January",
 }
 
 

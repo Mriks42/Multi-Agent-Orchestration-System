@@ -629,20 +629,25 @@ function evidence(job) {
     `</div></details>`;
 }
 
-// Sub-cent runs are the normal case, so "$0.00" would read as free.
-function usd(n) {
-  return n && n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
+// Sub-cent runs are the normal case, so "$0.00" would read as free. One
+// precision for the whole column, including the total, or the rows do not
+// visibly add up: $0.026 printed as "$0.03" beside "$0.0045" reads as $0.0345
+// against a total of $0.03, and both figures are right.
+function usd(n, places) {
+  return `$${n.toFixed(places)}`;
 }
 
 function spend(job) {
   const c = job.cost;
   if (!c || !c.agents || !c.agents.length) return "";
+  const amounts = c.agents.map(a => Math.abs(a.usd)).concat([Math.abs(c.usd)]);
+  const places = Math.max(...amounts) < 1 ? 4 : 2;
   const row = a =>
     `<tr><td>${esc(a.agent)}</td>` +
     `<td class="num">${a.calls} call${a.calls === 1 ? "" : "s"}</td>` +
     `<td class="num">${a.input_tokens.toLocaleString()} in</td>` +
     `<td class="num">${a.output_tokens.toLocaleString()} out</td>` +
-    `<td class="usd">${a.priced ? usd(a.usd) : "unpriced"}</td></tr>`;
+    `<td class="usd">${a.priced ? usd(a.usd, places) : "unpriced"}</td></tr>`;
   // "priced" travels with the number so an incomplete total cannot be read as
   // the bill: a model missing from the price table contributes tokens but no
   // dollars, and saying so is the difference between a floor and an answer.
@@ -655,7 +660,7 @@ function spend(job) {
     `<td class="num">${c.calls} calls</td>` +
     `<td class="num">${c.input_tokens.toLocaleString()} in</td>` +
     `<td class="num">${c.output_tokens.toLocaleString()} out</td>` +
-    `<td class="usd">${usd(c.usd)}</td></tr>` +
+    `<td class="usd">${usd(c.usd, places)}</td></tr>` +
     `</table>${caveat}</div>`;
 }
 

@@ -12,7 +12,7 @@ import threading
 import pytest
 from conftest import FakeChatModel, make_deps
 
-from mas.cost import PRICES, Ledger, Spend, format_usd, price_for
+from mas.cost import PRICES, Ledger, Spend, format_usd, price_for, usd_places
 from mas.graph import build_graph
 from mas.state import Finding, Outline, Review, Section, Source
 
@@ -138,6 +138,33 @@ def test_a_sub_cent_run_does_not_round_away_to_nothing():
     assert format_usd(0.0031) == "$0.0031"
     assert format_usd(1.5) == "$1.50"
     assert format_usd(0.0) == "$0.00"
+
+
+def test_one_precision_per_column_so_the_rows_add_up():
+    """Choosing precision per row makes a table that does not sum.
+
+    A real run had the Reviewer at $0.026 and the Writer at $0.0045. Printed
+    per row that reads "$0.03" beside "$0.0045" -- apparently $0.0345 against a
+    total of $0.03. Both figures were right and the column still looked wrong.
+    """
+    rows = [0.0260125, 0.00450405, 0.00050445, 0.0004767]
+    total = sum(rows)
+    places = usd_places(rows + [total])
+
+    shown = [float(format_usd(r, places).lstrip("$")) for r in rows]
+    shown_total = float(format_usd(total, places).lstrip("$"))
+    assert sum(shown) == pytest.approx(shown_total, abs=1e-9)
+
+
+def test_a_dollar_scale_run_is_not_shown_to_four_decimals():
+    """Precision follows the column: cents need four places, dollars do not."""
+    assert usd_places([7.0, 0.69]) == 2
+    assert usd_places([0.026, 0.0045]) == 4
+    assert format_usd(7.0, usd_places([7.0, 0.69])) == "$7.00"
+
+
+def test_an_empty_column_does_not_explode():
+    assert usd_places([]) == 4
 
 
 # ------------------------------------------------------------------ end to end

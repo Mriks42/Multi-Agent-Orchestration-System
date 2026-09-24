@@ -133,8 +133,23 @@ def _spend(model: str, calls: int, input_tokens: int, output_tokens: int) -> Spe
     return Spend(calls, input_tokens, output_tokens, cost, priced=True)
 
 
-def format_usd(amount: float) -> str:
-    """Report sub-cent amounts honestly instead of rounding them to $0.00."""
-    if amount and amount < 0.01:
-        return f"${amount:.4f}"
-    return f"${amount:.2f}"
+def usd_places(amounts) -> int:
+    """One precision for a whole column, so its rows visibly sum to its total.
+
+    Picking per row makes a table that does not add up: a run where the
+    Reviewer costs $0.026 and the Writer $0.0045 printed "$0.03" beside
+    "$0.0045", which reads as $0.0345 against a total of $0.03. Both figures
+    were right and the column still looked wrong.
+    """
+    return 4 if max([abs(a) for a in amounts] or [0]) < 1 else 2
+
+
+def format_usd(amount: float, places: int | None = None) -> str:
+    """Report sub-cent amounts honestly instead of rounding them to $0.00.
+
+    `places` fixes the precision for a column; left out, it adapts to the one
+    value, which is what a figure quoted on its own wants.
+    """
+    if places is None:
+        places = 4 if amount and abs(amount) < 0.01 else 2
+    return f"${amount:.{places}f}"

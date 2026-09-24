@@ -99,12 +99,12 @@ Published with 10 unresolved issue(s) — revision budget was exhausted.
   ... 8 more, all of the same kind
 
 Cost
-  Reviewer Agent   2 call(s)    8,610 in   1,013 out      $0.03
+  Reviewer Agent   2 call(s)    8,610 in   1,013 out    $0.0317
   Writer Agent    10 call(s)   22,340 in   2,874 out    $0.0051
   Research Agent   2 call(s)    1,909 in     431 out    $0.0005
   Planning Agent   1 call(s)      791 in     659 out    $0.0005
   ----------------------------------------------------------
-  total           15 call(s)   33,650 in   4,977 out      $0.04
+  total           15 call(s)   33,650 in   4,977 out    $0.0378
 ```
 
 That is one real run on 2026-09-24, pasted rather than composed, and it shows
@@ -463,7 +463,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-316 tests covering the routing table, the revision loop, budget exhaustion,
+319 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, cost accounting,
 fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
@@ -572,16 +572,16 @@ response and are tallied per agent:
 
 ```
 Cost
-  Reviewer Agent   2 call(s)    9,446 in     747 out      $0.03
+  Reviewer Agent   2 call(s)    9,446 in     747 out    $0.0311
   Writer Agent    13 call(s)   33,448 in   3,720 out    $0.0072
   Research Agent   2 call(s)    2,242 in     462 out    $0.0006
   Planning Agent   1 call(s)      821 in     708 out    $0.0005
   ----------------------------------------------------------
-  total           18 call(s)   45,957 in   5,637 out      $0.04
+  total           18 call(s)   45,957 in   5,637 out    $0.0395
 ```
 
 That is a real Confluent Q2 2025 run. **The Reviewer made 2 of the 18 calls and
-spent about three quarters of the money**, because review is the one step on
+spent 79% of the money**, because review is the one step on
 the stronger model and gpt-4o costs roughly 16x gpt-4o-mini per token. Counting
 calls would have told you the opposite of where the money goes, which is the
 reason this is measured.

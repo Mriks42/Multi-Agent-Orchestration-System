@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from .checkpoint import DEFAULT_PATH, checkpointer, describe, load, thread_id
 from .config import load_settings
-from .cost import format_usd
+from .cost import format_usd, usd_places
 from .deps import Deps
 from .graph import build_graph, run_report
 from .distributed.broker import BrokerError
@@ -129,8 +129,11 @@ def _report_spend(ledger, distributed: bool = False) -> None:
     console.print("\n[bold]Cost[/bold]")
     label = "total" if total.priced else "total (incomplete)"
     width = max(*(len(a) for a in by_agent), len(label))
+    # One precision for the column, including the total, so the rows add up on
+    # the page as well as in the arithmetic.
+    places = usd_places([s.cost_usd for s in by_agent.values()] + [total.cost_usd])
     for agent, spend in sorted(by_agent.items(), key=lambda kv: -kv[1].cost_usd):
-        cost = format_usd(spend.cost_usd) if spend.priced else "unpriced"
+        cost = format_usd(spend.cost_usd, places) if spend.priced else "unpriced"
         console.print(
             f"  {agent:<{width}}  {spend.calls:>2} call(s)  "
             f"{spend.input_tokens:>7,} in  {spend.output_tokens:>6,} out  "
@@ -140,7 +143,7 @@ def _report_spend(ledger, distributed: bool = False) -> None:
         f"  [dim]{'-' * (width + 44)}[/dim]\n"
         f"  {label:<{width}}  {total.calls:>2} call(s)  "
         f"{total.input_tokens:>7,} in  {total.output_tokens:>6,} out  "
-        f"[bold]{format_usd(total.cost_usd):>9}[/bold]"
+        f"[bold]{format_usd(total.cost_usd, places):>9}[/bold]"
     )
 
     if not total.priced:
