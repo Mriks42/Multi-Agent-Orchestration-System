@@ -20,6 +20,45 @@ With `--distributed`, that same fan-out dispatches to **separate worker
 processes** through a shared queue instead of threads — see
 [Running it distributed](#running-it-distributed).
 
+## Four things running it taught me
+
+These are the parts worth reading. Each came from running the system against a
+case where the right answer was already known, and **none was visible from
+reading the code**.
+
+**The fact-checker was validating fabrications.** The Reviewer checks the draft
+against the findings, so when research invented figures it faithfully approved
+them — and flagged the writer's honest "not disclosed" hedges as unsupported
+instead. The safety check was inverted: it punished caution and rewarded
+confidence. Fixed by propagating provenance through the state, so unsourced
+findings are marked, the writer must attribute rather than assert them, and
+every report carries a footer counting what a source actually backs.
+
+**The LLM judge preferred fabrication.** Against a `--no-search` control it
+scored a report with zero citations 5/5 on "grounding" and 5 overall, above the
+properly sourced baseline's 4. Not a limit of LLM judges — a design error: it
+was asked whether claims traced to the evidence *while being shown no
+evidence*. Given the findings and sources, it scores that same report 2/5 on
+grounding, verified across three companies.
+
+**Two checks that overlap on paper catch different things in practice.**
+`check_figures` asks whether a number is grounded; the Reviewer asks whether the
+draft is coherent. On a live Databricks run the draft carried two revenue
+run-rates — $5.4bn and $4.8bn — that were each traceable to the evidence and
+contradicted each other. The mechanical check passed both, correctly, because
+each one individually appears in the findings. The Reviewer caught both. Keeping
+the cheap deterministic check *and* the expensive model is not redundancy; they
+fail in different directions.
+
+**Counting calls pointed at the wrong agent.** A default run is ~18 model calls
+and about four cents, and the Reviewer makes 2 of those calls while spending
+roughly three quarters of the money — review is the one step on the stronger
+model, at ~16x the token price. Until tokens were actually measured the only
+available proxy for cost was the call count, which pointed squarely at the
+Writer. See [What a run costs](#what-a-run-costs).
+
+## The four agents
+
 | Agent | Responsibility |
 | --- | --- |
 | **Research Agent** | Plans search queries, runs them, distils hits into `Finding`s tied to their sources |
@@ -66,25 +105,6 @@ and lists what is still open — a reader is told rather than left to assume.
 **Use a real, publicly reporting company.** A fictional name gives the Research
 Agent nothing to find, and the model will invent a company from scratch — the
 Provenance footer then reports that nothing is sourced.
-
-## Two things running it taught me
-
-**The fact-checker was validating fabrications.** The Reviewer checks the draft
-against the findings, so when research invented figures it faithfully approved
-them -- and flagged the writer's honest "not disclosed" hedges as unsupported
-instead. Fixed by propagating provenance through the state: unsourced findings
-are marked, the writer must attribute rather than assert them, and every report
-carries a footer counting what is actually backed by a source.
-
-**The LLM judge preferred fabrication.** Tested against a `--no-search` control
-it scored a report with zero citations 5/5 on "grounding" and 5 overall, above
-the properly sourced baseline's 4. Not a limit of LLM judges -- a design error:
-it was asked whether claims traced to the evidence while being shown no
-evidence. Given the findings and sources, it scores that report 2/5 on
-grounding, verified across three companies.
-
-Neither was visible from reading the code. Both came from running it against a
-case where the right answer was already known.
 
 ## The web UI
 

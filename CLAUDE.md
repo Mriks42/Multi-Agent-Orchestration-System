@@ -72,7 +72,7 @@ None of those were visible from the code. Prefer running the thing.
 Ask which of these to take up rather than starting one unprompted -- they differ
 a lot in cost and in how much of the user's own time they need.
 
-1. **Finish the deploy.** Everything Claude can do is done and pushed; see
+1. **Finish the deploy.** Everything Claude can do is done; see
    "Deployment: built, not yet live" below. It waits on ~10 minutes of the
    user's clicking in the Render dashboard. **On the Mac this is unblocked**
    -- `render.com` resolves and the dashboard answers -- so no hotspot is
@@ -116,8 +116,18 @@ a lot in cost and in how much of the user's own time they need.
    were verified against OpenAI's published pricing rather than recalled -- the
    same discipline the hosting table and `period.py` needed.
 
-4. **Write up the two findings** (see below) somewhere a reader meets them in
-   the first thirty seconds rather than digging them out of the README.
+4. **DONE 2026-09-24 -- the findings are the first thing a reader meets.**
+   They were buried in commit messages and two thirds of the way down the
+   README. "Four things running it taught me" now sits directly under the
+   architecture diagram, before the agent table and the quick start.
+
+   Four, not two: the original pair (the fact-checker validating fabrications,
+   the judge preferring fabrication) plus the two this day produced -- that the
+   mechanical figure check and the model reviewer fail in *different*
+   directions, and that counting calls pointed at the wrong agent for cost.
+   The through-line is stated once and is the actual pitch: none of the four
+   was visible from reading the code.
+
 5. **Validate the LLM judge -- deferred, and unblocked.** 28 pairs are built and
    committed, so no further eval runs are needed. It waits only on the user
    spending ~20 minutes in `mas-label`. Lower priority than it looks: the
