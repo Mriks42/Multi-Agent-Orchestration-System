@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 283 tests, all offline — no API key needed
+pytest                          # 284 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -108,8 +108,25 @@ a lot in cost and in how much of the user's own time they need.
    a protocol, so this is one new file (`distributed/redis_broker.py`, mirroring
    `sqlite_broker.py`) plus a compose file standing up Redis, one orchestrator
    and two `mas-worker`s. **Docker is still not installed on this machine** --
-   `docker --version` is not found -- so it can be written but not run, and an
-   untested broker is worth very little. Check for Docker before starting.
+   `docker --version` is not found -- so the *compose* half can be written but
+   not run. Check for Docker before starting.
+
+   The broker half is separable and less blocked than it looks: it needs a
+   Redis, not Docker, and `brew install redis` supplies one natively on the
+   Mac. Only the compose demo genuinely requires a container runtime, and
+   `brew install colima docker` gives that without Docker Desktop if it comes
+   to it -- which would also let the `Dockerfile` finally be built locally
+   instead of first on Render.
+
+   **`tests/test_broker.py` is a conformance suite as of 2026-09-24**, so a
+   second backend is now one `BACKENDS` entry away from inheriting all eleven
+   guarantee tests; before that it named `SqliteBroker` directly and a new
+   backend would have started at zero coverage. `renew` and `stats` are
+   deliberately off the protocol -- `worker.py` duck-types `renew` and falls
+   back to a generous lease -- so those two tests skip rather than fail on a
+   backend that omits them. SQLite was never a stopgap: the original commit
+   chose it so the distributed path runs on a laptop with no server, and said
+   even then that the contract "fits Redis for deployment".
    Worth knowing it buys nothing for a single report: distribution is *slower*
    (30s vs 24s threaded). It buys fault tolerance and throughput across many
    reports, and a second broker implementation is what proves `Broker` was

@@ -390,10 +390,11 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-283 tests covering the routing table, the revision loop, budget exhaustion,
+284 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
-broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
+broker conformance -- leases and retries, run against every registered
+backend rather than one, crash recovery, checkpoint resume, eval metrics, the
 judge's bias controls, the HTTP API, and that every command still imports and
 parses — all offline. One test spawns two real subprocesses to prove the
 queue coordinates across processes.
@@ -470,7 +471,7 @@ tests/
   test_review_footer.py published verdict, idempotent stamping, metric isolation
   test_cli_output.py    severity and model text survive rich markup
   test_graph.py         full graph end to end, fan-out, revision loop
-  test_broker.py        atomic claims, leases, retries, idempotency
+  test_broker.py        Broker conformance suite: every backend, same guarantees
   test_distributed.py   workers, crash recovery, two real subprocesses
   test_search.py        backend selection, graceful failure
   test_checkpoint.py    resume skips completed work
