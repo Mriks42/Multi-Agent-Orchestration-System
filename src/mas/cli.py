@@ -11,6 +11,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from rich.console import Console
+from rich.markup import escape
 
 from uuid import uuid4
 
@@ -99,9 +100,14 @@ def _summarise(state: ReportState) -> None:
             "— revision budget was exhausted."
         )
     for issue in review.issues:
-        console.print(f"  [yellow]![/yellow] [{issue.severity}] {issue.section or 'report'}: {issue.problem}")
+        # escape(): the severity is written in brackets and the section and
+        # problem come from the model, so all three reach rich as markup unless
+        # escaped. "[blocker]" was being parsed as a style tag and silently
+        # dropped -- every run printed its issues with no severity at all.
+        detail = escape(f"[{issue.severity}] {issue.section or 'report'}: {issue.problem}")
+        console.print(f"  [yellow]![/yellow] {detail}")
     if review.summary:
-        console.print(f"\n[dim]{review.summary}[/dim]")
+        console.print(f"\n[dim]{escape(review.summary)}[/dim]")
 
 
 def main(argv: list[str] | None = None) -> int:

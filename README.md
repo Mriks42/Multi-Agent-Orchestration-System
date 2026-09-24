@@ -390,7 +390,7 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-277 tests covering the routing table, the revision loop, budget exhaustion,
+283 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker leases and retries, crash recovery, checkpoint resume, eval metrics, the
@@ -468,6 +468,7 @@ tests/
   test_access.py        access modes, the code check, misconfiguration
   test_figures.py       figure parsing, rounding tolerance, what must not flag
   test_review_footer.py published verdict, idempotent stamping, metric isolation
+  test_cli_output.py    severity and model text survive rich markup
   test_graph.py         full graph end to end, fan-out, revision loop
   test_broker.py        atomic claims, leases, retries, idempotency
   test_distributed.py   workers, crash recovery, two real subprocesses
