@@ -140,6 +140,13 @@ def usd_places(amounts) -> int:
     Reviewer costs $0.026 and the Writer $0.0045 printed "$0.03" beside
     "$0.0045", which reads as $0.0345 against a total of $0.03. Both figures
     were right and the column still looked wrong.
+
+    This shrinks that discrepancy to at most a unit in the last place; it does
+    not remove it, and is not meant to. Rounding each row and separately
+    rounding their exact sum can disagree -- a Cloudflare run showed rows
+    summing to $0.0318 against a total of $0.0317. Forcing agreement means
+    printing some row as other than its own rounding, which swaps a visible
+    residual for an invisible wrong number.
     """
     return 4 if max([abs(a) for a in amounts] or [0]) < 1 else 2
 

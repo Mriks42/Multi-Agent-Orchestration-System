@@ -140,20 +140,35 @@ def test_a_sub_cent_run_does_not_round_away_to_nothing():
     assert format_usd(0.0) == "$0.00"
 
 
-def test_one_precision_per_column_so_the_rows_add_up():
-    """Choosing precision per row makes a table that does not sum.
+def test_one_precision_per_column_keeps_the_rows_within_a_last_place_of_the_total():
+    """Uniform precision shrinks the mismatch; it cannot remove it.
 
-    A real run had the Reviewer at $0.026 and the Writer at $0.0045. Printed
-    per row that reads "$0.03" beside "$0.0045" -- apparently $0.0345 against a
-    total of $0.03. Both figures were right and the column still looked wrong.
+    Rounding each row and separately rounding their exact sum will not always
+    agree: a live Cloudflare run displayed rows summing to $0.0318 against a
+    total of $0.0317. Every figure was its own honest rounding.
+
+    The fix that was actually needed was uniform precision. Mixed precision --
+    "$0.03" beside "$0.0045" -- made a $0.0045 row look like it belonged to a
+    $0.03 column, an apparent $0.0345 against a total of $0.03. That is an 18%
+    discrepancy; this is one unit in the last displayed place.
+
+    Forcing an exact sum would mean printing some row as other than its own
+    rounding, which trades a visible rounding residual for an invisible wrong
+    number. Not worth it. This pins the bound instead.
     """
-    rows = [0.0260125, 0.00450405, 0.00050445, 0.0004767]
-    total = sum(rows)
-    places = usd_places(rows + [total])
-
-    shown = [float(format_usd(r, places).lstrip("$")) for r in rows]
-    shown_total = float(format_usd(total, places).lstrip("$"))
-    assert sum(shown) == pytest.approx(shown_total, abs=1e-9)
+    cases = [
+        [0.0259725, 0.0047124, 0.0005586, 0.0004671],   # the Cloudflare run
+        [0.0317, 0.0051, 0.0005, 0.0005],               # the Shopify run
+        [7.0, 0.69, 0.004],                             # dollar scale
+    ]
+    for rows in cases:
+        total = sum(rows)
+        places = usd_places(rows + [total])
+        shown = [float(format_usd(r, places).lstrip("$")) for r in rows]
+        shown_total = float(format_usd(total, places).lstrip("$"))
+        # Each row can move by at most half a unit in the last place.
+        bound = len(rows) * 0.5 * 10 ** -places + 1e-12
+        assert abs(sum(shown) - shown_total) <= bound, (rows, sum(shown), shown_total)
 
 
 def test_a_dollar_scale_run_is_not_shown_to_four_decimals():
