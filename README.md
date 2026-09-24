@@ -3,6 +3,10 @@
 Four specialised agents collaborate to produce a market research report. Built on
 [LangGraph](https://langchain-ai.github.io/langgraph/) with OpenAI models.
 
+**[Live demo](https://multi-agent-research-k2ag.onrender.com)** — four saved
+reports are readable without a code, including the evidence behind every
+finding. Running a *new* one spends API credits, so that needs a code.
+
 ```
                             ┌──▶ write_section ──┐
                             │                    │
@@ -166,6 +170,11 @@ follow proves nothing. Unsourced findings are marked in place, so the gap is
 visible rather than merely counted.
 
 ## Deploying it
+
+Live at **https://multi-agent-research-k2ag.onrender.com**, deployed from
+[`render.yaml`](render.yaml) as a Render Blueprint — the service is described
+by the repo rather than by remembered dashboard clicks, and a push to `main`
+redeploys it.
 
 One image for every target — Render, Lightsail, EC2, Fargate and Hugging Face
 Spaces all run a container and pass a port, so the platform stays a deploy-time

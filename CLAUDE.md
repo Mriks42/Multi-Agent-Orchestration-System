@@ -72,12 +72,10 @@ None of those were visible from the code. Prefer running the thing.
 Ask which of these to take up rather than starting one unprompted -- they differ
 a lot in cost and in how much of the user's own time they need.
 
-1. **Finish the deploy.** Everything Claude can do is done; see
-   "Deployment: built, not yet live" below. It waits on ~10 minutes of the
-   user's clicking in the Render dashboard. **On the Mac this is unblocked**
-   -- `render.com` resolves and the dashboard answers -- so no hotspot is
-   needed there; the DNS block recorded below is specific to the university
-   network. Nothing here needs code.
+1. **DONE 2026-09-24 -- the deploy is live.**
+   https://multi-agent-research-k2ag.onrender.com, from the Blueprint, with
+   the keep-warm running. See "Deployment: live since 2026-09-24" below.
+
 2. **DONE 2026-09-24 -- the figure check fired on a real report.** It took
    n=3. The Datadog Q1 2025 run over the Redis/compose stack drafted a "13%"
    that appeared in no finding and no source, and `check_figures` raised it:
@@ -162,11 +160,26 @@ Not on this list, deliberately: **more replicates so the eval can resolve small
 prompt changes.** It would cost 3x per experiment to detect effects that did not
 matter; the resolution limit is documented instead.
 
-## Deployment: built, not yet live
+## Deployment: live since 2026-09-24
 
-Both decisions are made and the config is written, committed and pushed.
-**Render free tier, Docker, access mode `gallery`.** What remains is the user's
-ten minutes in a dashboard; there is no code left to write.
+**https://multi-agent-research-k2ag.onrender.com** — Render free tier, Docker,
+access mode `gallery`, one instance, deployed from `render.yaml` as a Blueprint
+so the service is reproducible from the repo rather than from remembered
+dashboard clicks.
+
+Verified against the live URL, not assumed: `/api/health` answers 200, all four
+gallery reports serve with their provenance counts, a submit without a code is
+refused with 403, and both of that day's fixes are present (the MongoDB fiscal
+warning, and `Cache-Control: no-store` on the page).
+
+**The amd64 build passed first time**, in 52.8s. The image had only ever been
+built arm64 under colima, so that was the one risk local testing could not
+retire; it is retired now.
+
+`DEMO_URL` is set as a repository secret, so `.github/workflows/keep-warm.yml`
+pings `/api/health` every ten minutes. Say out loud why that is not gaming the
+free tier: 750 instance-hours a month against a month of at most 744 means one
+service staying awake fits *inside* the allowance.
 
 **What exists** (all on `main`, pushed to `github.com/Mriks42/Multi-Agent-Orchestration-System`):
 
