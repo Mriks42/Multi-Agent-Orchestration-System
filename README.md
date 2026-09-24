@@ -82,18 +82,40 @@ The report is written to `reports/shopify-q1-2025-<date>.md`. A real run:
 Market research report: Shopify — Q1 2025
 draft model gpt-4o-mini | review model gpt-4o | up to 2 revision(s)
 
-  OK Research Agent — 23 sources -> 12 findings
-  OK Planning Agent — Executive Summary | Financial Performance | Market ...
+  OK Research Agent — 15 sources -> 8 findings
+  OK Planning Agent — Executive Summary | Financial Performance | Business Growth ...
   OK Writer Agent — 5 of 7 section(s) drafted in parallel; 2 summarising section(s) follow
   OK Writer Agent — pass 1, 7 section(s) drafted
-  OK Reviewer Agent — changes requested (2 issue(s), 2 unsupported)
-  OK Writer Agent — pass 2, 2 of 7 section(s) revised
-  OK Reviewer Agent — changes requested (2 issue(s), 2 unsupported)
+  OK Reviewer Agent — changes requested (3 issue(s), 3 unsupported)
+  OK Writer Agent — pass 2, 3 of 7 section(s) revised
+  OK Reviewer Agent — changes requested (10 issue(s), 10 unsupported)
 
-Published with 2 unresolved issue(s) — revision budget was exhausted.
-  ! [blocker] Financial Performance: the draft attributes $74.8bn GMV to the
-    quarter, but the cited source reports it for the trailing twelve months.
+Published with 10 unresolved issue(s) — revision budget was exhausted.
+  ! [blocker] Executive Summary: The statement "This rise in operating margin
+    indicates improved operational efficiency and effective cost management as
+    Shopify scales its operations" is unsupported by the findings.
+  ! [blocker] Financial Performance: The statement "indicating robust demand
+    across its platform" is unsupported by the findings.
+  ... 8 more, all of the same kind
+
+Cost
+  Reviewer Agent   2 call(s)    8,610 in   1,013 out      $0.03
+  Writer Agent    10 call(s)   22,340 in   2,874 out    $0.0051
+  Research Agent   2 call(s)    1,909 in     431 out    $0.0005
+  Planning Agent   1 call(s)      791 in     659 out    $0.0005
+  ----------------------------------------------------------
+  total           15 call(s)   33,650 in   4,977 out      $0.04
 ```
+
+That is one real run on 2026-09-24, pasted rather than composed, and it shows
+two things worth not hiding. **The revision made the issue count worse** — 3
+before, 10 after — which is the documented behaviour, not a bad day: each
+rewrite is a fresh chance to write a sentence the findings do not support,
+which is why the default stays at 2 (see [How it works](#how-it-works)). And **every one of the 10 is an unsupported
+*interpretation*** — "indicating robust demand", "underscores the
+effectiveness" — rather than a wrong number. The prompt reserves `blocker` for
+factual errors, so the severity is arguably too high; that inconsistency is
+known and is why blocker counts are never read without reading the text.
 
 **That ending is the normal one, and it is deliberate.** No report has yet been
 approved: approval requires no blocking *or major* issues, so a single

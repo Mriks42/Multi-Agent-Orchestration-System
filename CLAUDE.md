@@ -267,7 +267,8 @@ wrong.
     also rules out `--no-search` as an adversarial test of it: the writer takes
     its figures from the invented findings, so they match and pass.
 - **No report has ever been approved** -- 0 of 12 in the full suite, every run,
-  and 0 of 15 counting the three live runs of 2026-09-10, -23 and -24. Largely downstream of
+  and none of the live runs since has been approved either -- eight of them as
+  of 2026-09-24, across the CLI, the web UI and the compose stack. Largely downstream of
   the above: the reviewer keeps finding invented figures and is right to. Worth
   knowing that approval also requires no *major* issues, so a single substantive
   gap blocks a report; that bar is a judgement call rather than a bug.
