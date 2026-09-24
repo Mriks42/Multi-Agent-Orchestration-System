@@ -402,3 +402,15 @@ def test_steps_come_back_in_the_order_they_happened():
     assert "Writer Agent" in agents[first_review:], (
         f"the revision pass must follow the review that asked for it: {agents}"
     )
+
+
+def test_the_page_is_never_served_from_the_browser_cache(client):
+    """The page is re-read from disk per request; caching would undo that.
+
+    Without this header a corrected page still rendered the previous
+    JavaScript until a hard refresh, which looks exactly like a fix that did
+    not work. The re-read is only useful if the browser actually asks.
+    """
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "no-store" in response.headers.get("cache-control", "")

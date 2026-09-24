@@ -69,8 +69,16 @@ def create_app(deps: Deps | None = None, store: JobStore | None = None,
             return app.state.deps
 
     @app.get("/", response_class=HTMLResponse)
-    def index() -> str:
-        return PAGE.read_text(encoding="utf-8")
+    def index() -> HTMLResponse:
+        # Re-read per request so an edit shows up on refresh -- and say
+        # no-store, or the browser serves its own copy and the re-read achieves
+        # nothing. Without this a fixed page still rendered the old JavaScript
+        # until a hard refresh, which cost an afternoon of believing a fix had
+        # not worked. The page is a few KB and the demo is one instance.
+        return HTMLResponse(
+            PAGE.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store, must-revalidate"},
+        )
 
     @app.get("/api/health")
     def health() -> dict:

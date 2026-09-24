@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 299 tests, all offline — no API key needed
+pytest                          # 300 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -360,6 +360,12 @@ Do not "fix" these without discussing; each was a considered trade-off.
   never for evaluating quality. It is also **not** an adversarial test of
   `check_figures`: the writer draws its figures from the invented findings, so
   they match the evidence and pass.
+- **A re-read from disk is useless if the browser does not ask.** `index.html`
+  is re-read per request, but the response carried no cache headers, so the
+  browser served its own copy and a corrected page kept rendering the previous
+  JavaScript until a hard refresh. That looks exactly like a fix that did not
+  work, and it wasted a round of "is it fixed yet?" on 2026-09-24. The route
+  now sends `Cache-Control: no-store` and a test pins it.
 - **`mas-serve` does not reload Python.** `index.html` is re-read from disk on
   every request, so HTML and CSS changes appear on a browser refresh -- but
   every `.py` module was imported at startup. After changing agent, web or
