@@ -55,6 +55,7 @@ def make_planning_node(deps: Deps):
                 findings=format_findings(state.get("findings", [])),
                 words=1800,
             ),
+            meter=deps.meter("Planning Agent"),
         )
         log.info("planning: %d sections", len(outline.sections))
         return {

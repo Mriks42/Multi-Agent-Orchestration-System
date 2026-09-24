@@ -65,6 +65,10 @@ class Job:
     approved: bool = False
     open_issues: list[str] = field(default_factory=list)
 
+    cost: dict = field(default_factory=dict)
+    """Per-agent token spend, so "what did that cost?" is answered on the page
+    rather than estimated from the call count."""
+
     findings: list[dict] = field(default_factory=list)
     sources: list[dict] = field(default_factory=list)
     """The evidence, so provenance can be checked rather than only counted.
@@ -102,6 +106,7 @@ class Job:
             "sources": self.sources,
             "approved": self.approved,
             "open_issues": self.open_issues,
+            "cost": self.cost,
         }
 
 
@@ -154,13 +159,52 @@ class JobStore:
                 )
 
 
+def _spend_payload(ledger) -> dict:
+    """The ledger, flattened for JSON.
+
+    `priced` travels with the number: a total that silently excluded an
+    unpriced model would read as the bill rather than a floor.
+    """
+    if not ledger:
+        return {}
+    total = ledger.total()
+    return {
+        "agents": [
+            {
+                "agent": agent,
+                "calls": spend.calls,
+                "input_tokens": spend.input_tokens,
+                "output_tokens": spend.output_tokens,
+                "usd": round(spend.cost_usd, 6),
+                "priced": spend.priced,
+            }
+            for agent, spend in sorted(ledger.by_agent().items(), key=lambda kv: -kv[1].cost_usd)
+        ],
+        "calls": total.calls,
+        "input_tokens": total.input_tokens,
+        "output_tokens": total.output_tokens,
+        "usd": round(total.cost_usd, 6),
+        "priced": total.priced,
+        "unpriced_models": sorted(ledger.unpriced_models()),
+    }
+
+
 def run_job(store: JobStore, job: Job, deps, max_revisions: int | None = None) -> None:
     """Execute one report, recording progress as each agent finishes.
 
     Runs on a worker thread. Every failure is recorded on the job rather than
     raised, because nothing is waiting to catch it.
     """
+    from dataclasses import replace
+
+    from ..cost import Ledger
     from ..graph import run_report
+
+    # A fresh ledger per job. The server builds Deps once and reuses it, so a
+    # shared ledger would report the second report's cost as the sum of every
+    # report the process has ever run. `replace` keeps the models and the
+    # search tool; only the tally is new.
+    deps = replace(deps, ledger=Ledger())
 
     store.update(job.id, status="running")
 
@@ -204,9 +248,11 @@ def run_job(store: JobStore, job: Job, deps, max_revisions: int | None = None) -
 
     findings = state.get("findings", []) or []
     review = state.get("review")
+    ledger = getattr(deps, "ledger", None)
     store.update(
         job.id,
         status="done",
+        cost=_spend_payload(ledger) if ledger else {},
         report=state.get("draft", ""),
         sourced=sum(1 for f in findings if f.source_ids),
         total_findings=len(findings),

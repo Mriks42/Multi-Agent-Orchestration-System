@@ -277,6 +277,7 @@ def make_write_section_node(deps: Deps):
                     ),
                     target_words=task["target_words"],
                 ),
+                meter=deps.meter("Writer Agent"),
             )
         else:
             siblings = task["siblings"]
@@ -298,6 +299,7 @@ def make_write_section_node(deps: Deps):
                     siblings="\n".join(f"### {h}\n{t[:400]}" for h, t in siblings.items())
                     or "(none yet - this pass drafts all sections together)",
                 ),
+                meter=deps.meter("Writer Agent"),
             )
         # A single-key dict: the `sections` reducer merges it with whatever the
         # branches running alongside this one return.

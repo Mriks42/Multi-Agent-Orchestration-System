@@ -231,6 +231,7 @@ def score_report(deps: Deps, state) -> JudgeScore:
             scale=SCALE,
             anchors=ANCHORS,
         ),
+        meter=deps.meter("Judge"),
     )
 
 
@@ -253,6 +254,7 @@ def compare_reports(deps: Deps, company: str, quarter: str, a: str, b: str) -> C
                     company=company, quarter=quarter, a=_body(first), b=_body(second),
                     criteria=_criteria_block(), scale=SCALE,
                 ),
+                meter=deps.meter("Judge"),
             )
             setattr(result, label, verdict.winner)
             if label == "forward":

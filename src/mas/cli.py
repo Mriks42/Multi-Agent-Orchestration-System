@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from .checkpoint import DEFAULT_PATH, checkpointer, describe, load, thread_id
 from .config import load_settings
+from .cost import format_usd
 from .deps import Deps
 from .graph import build_graph, run_report
 from .distributed.broker import BrokerError
@@ -113,6 +114,47 @@ def _summarise(state: ReportState) -> None:
         console.print(f"\n[dim]{escape(review.summary)}[/dim]")
 
 
+def _report_spend(ledger, distributed: bool = False) -> None:
+    """What the run cost, per agent.
+
+    Printed after the report rather than during it: the numbers only mean
+    anything once every agent has finished, and a running total competing with
+    the progress lines would obscure the fan-out they exist to show.
+    """
+    if not ledger:
+        return
+    by_agent = ledger.by_agent()
+    total = ledger.total()
+
+    console.print("\n[bold]Cost[/bold]")
+    label = "total" if total.priced else "total (incomplete)"
+    width = max(*(len(a) for a in by_agent), len(label))
+    for agent, spend in sorted(by_agent.items(), key=lambda kv: -kv[1].cost_usd):
+        cost = format_usd(spend.cost_usd) if spend.priced else "unpriced"
+        console.print(
+            f"  {agent:<{width}}  {spend.calls:>2} call(s)  "
+            f"{spend.input_tokens:>7,} in  {spend.output_tokens:>6,} out  "
+            f"[bold]{cost:>9}[/bold]"
+        )
+    console.print(
+        f"  [dim]{'-' * (width + 44)}[/dim]\n"
+        f"  {label:<{width}}  {total.calls:>2} call(s)  "
+        f"{total.input_tokens:>7,} in  {total.output_tokens:>6,} out  "
+        f"[bold]{format_usd(total.cost_usd):>9}[/bold]"
+    )
+
+    if not total.priced:
+        console.print(
+            f"  [yellow]No published price for {', '.join(sorted(ledger.unpriced_models()))}"
+            f"[/yellow] — the total above is a floor, not the bill."
+        )
+    if distributed:
+        console.print(
+            "  [yellow]Section drafting ran in worker processes[/yellow], which keep "
+            "their own tallies — this counts the orchestrator's calls only."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -206,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
             f"\n[yellow]{total - sourced} of {total} findings are unsourced[/yellow] "
             "and rest on model recollection."
         )
+
+    _report_spend(deps.ledger, distributed=args.distributed)
 
     out = args.out or Path("reports") / f"{_slug(args.company)}-{_slug(args.quarter)}-{date.today()}.md"
     out.parent.mkdir(parents=True, exist_ok=True)

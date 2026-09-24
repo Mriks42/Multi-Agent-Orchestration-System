@@ -71,6 +71,7 @@ def make_research_node(deps: Deps):
             _Queries,
             SYSTEM,
             QUERY_PROMPT.format(company=company, quarter=quarter, focus=focus, n=5),
+            meter=deps.meter("Research Agent"),
         )
 
         # Searches are network-bound and independent, so run them together. The
@@ -104,6 +105,7 @@ def make_research_node(deps: Deps):
                 sources=format_sources(sources),
                 discipline=discipline(company, quarter),
             ),
+            meter=deps.meter("Research Agent"),
         )
 
         # Drop citations pointing past the end of the source list, so no later

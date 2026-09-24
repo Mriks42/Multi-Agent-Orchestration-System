@@ -414,3 +414,40 @@ def test_the_page_is_never_served_from_the_browser_cache(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "no-store" in response.headers.get("cache-control", "")
+
+
+def test_each_report_is_costed_on_its_own_not_cumulatively():
+    """The server builds Deps once and reuses it across every job.
+
+    A ledger shared with it would report the second report's cost as the sum of
+    both, which grows without bound over the life of the process.
+    """
+    writer, reviewer = build_models([Review(approved=True), Review(approved=True)])
+    client = TestClient(create_app(
+        deps=make_deps(writer, reviewer, search=lambda q, n=5: [SOURCE]),
+        store=JobStore(), max_revisions=1,
+    ))
+
+    costs = []
+    for company in ("First", "Second"):
+        job_id = client.post(
+            "/api/reports", json={"company": company, "quarter": "Q1 2025"}
+        ).json()["id"]
+        costs.append(wait_for(client, job_id)["cost"])
+
+    assert costs[0]["calls"] > 0, "the run must have been costed at all"
+    assert costs[1]["calls"] == costs[0]["calls"], (
+        f"the second report inherited the first's tally: {costs}"
+    )
+
+
+def test_the_page_is_told_which_agent_spent_what(client):
+    job_id = client.post(
+        "/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}
+    ).json()["id"]
+    cost = wait_for(client, job_id)["cost"]
+
+    agents = {row["agent"] for row in cost["agents"]}
+    assert {"Research Agent", "Planning Agent", "Writer Agent", "Reviewer Agent"} <= agents
+    assert cost["input_tokens"] > 0 and cost["usd"] > 0
+    assert cost["priced"] is True

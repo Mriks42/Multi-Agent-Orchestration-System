@@ -15,18 +15,47 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
-def ask(llm: ChatModel, schema: type[T], system: str, user: str) -> T:
-    """Run one structured LLM call and get back a validated pydantic object."""
-    structured = llm.with_structured_output(schema)
-    return structured.invoke(
+def _meter(meter, raw) -> None:
+    """Hand one response's token usage to the meter, if anyone is counting.
+
+    Never raises. A missing usage field means an un-costed call, which is worth
+    far less than a run that dies while tallying what it spent.
+    """
+    if meter is None or raw is None:
+        return
+    try:
+        usage = getattr(raw, "usage_metadata", None) or {}
+        model = (getattr(raw, "response_metadata", None) or {}).get("model_name", "")
+        meter(model, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+    except Exception:  # pragma: no cover - accounting must not break a run
+        log.debug("could not record token usage", exc_info=True)
+
+
+def ask(llm: ChatModel, schema: type[T], system: str, user: str, meter=None) -> T:
+    """Run one structured LLM call and get back a validated pydantic object.
+
+    `include_raw` because the parsed object carries no token counts: the usage
+    lives on the raw message underneath it, and dropping that is what made a
+    run's cost unmeasurable. A backend that ignores the flag still returns the
+    parsed object directly, which is why both shapes are handled.
+    """
+    structured = llm.with_structured_output(schema, include_raw=True)
+    result = structured.invoke(
         [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
     )
+    if isinstance(result, dict) and "parsed" in result:
+        if result.get("parsing_error"):
+            # include_raw turns a parse failure into a field. Keep it fatal.
+            raise result["parsing_error"]
+        _meter(meter, result.get("raw"))
+        return result["parsed"]
+    return result
 
 
-def ask_text(llm: ChatModel, system: str, user: str) -> str:
+def ask_text(llm: ChatModel, system: str, user: str, meter=None) -> str:
     """Run one free-text LLM call and return the message content as a string."""
     result = llm.invoke(
         [
@@ -34,6 +63,7 @@ def ask_text(llm: ChatModel, system: str, user: str) -> str:
             {"role": "user", "content": user},
         ]
     )
+    _meter(meter, result)
     content = getattr(result, "content", result)
     if isinstance(content, list):  # some providers return content blocks
         content = "".join(

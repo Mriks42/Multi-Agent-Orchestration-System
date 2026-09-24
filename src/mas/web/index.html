@@ -182,6 +182,19 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ------------------------------------------------ provenance + issues */
+  /* Cost sits under the provenance verdict: both are things to check before
+     trusting a report, and both are read once at the end rather than watched. */
+  .spend { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .spend h4 { margin: 0 0 8px; font-size: 12px; font-weight: 640; letter-spacing: .04em;
+              text-transform: uppercase; color: var(--dim); }
+  .spend table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .spend td { padding: 3px 0; vertical-align: baseline; }
+  .spend td.num { text-align: right; font-variant-numeric: tabular-nums;
+                  white-space: nowrap; padding-left: 14px; color: var(--dim); }
+  .spend td.usd { text-align: right; font-variant-numeric: tabular-nums;
+                  white-space: nowrap; padding-left: 14px; font-weight: 620; }
+  .spend tr.sum td { border-top: 1px solid var(--line); padding-top: 7px; font-weight: 640; }
+  .spend .caveat { margin-top: 8px; font-size: 12.5px; color: var(--warn); }
   .prov { font-size: 13.5px; font-weight: 620; letter-spacing: -.005em; }
   .prov.ok { color: var(--accent); }
   .prov.warn { color: var(--warn); }
@@ -616,6 +629,36 @@ function evidence(job) {
     `</div></details>`;
 }
 
+// Sub-cent runs are the normal case, so "$0.00" would read as free.
+function usd(n) {
+  return n && n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
+}
+
+function spend(job) {
+  const c = job.cost;
+  if (!c || !c.agents || !c.agents.length) return "";
+  const row = a =>
+    `<tr><td>${esc(a.agent)}</td>` +
+    `<td class="num">${a.calls} call${a.calls === 1 ? "" : "s"}</td>` +
+    `<td class="num">${a.input_tokens.toLocaleString()} in</td>` +
+    `<td class="num">${a.output_tokens.toLocaleString()} out</td>` +
+    `<td class="usd">${a.priced ? usd(a.usd) : "unpriced"}</td></tr>`;
+  // "priced" travels with the number so an incomplete total cannot be read as
+  // the bill: a model missing from the price table contributes tokens but no
+  // dollars, and saying so is the difference between a floor and an answer.
+  const caveat = c.priced ? "" :
+    `<div class="caveat">No published price for ${esc((c.unpriced_models || []).join(", "))}` +
+    ` — the total is a floor, not the bill.</div>`;
+  return `<div class="spend"><h4>Cost</h4><table>` +
+    c.agents.map(row).join("") +
+    `<tr class="sum"><td>${c.priced ? "total" : "total (incomplete)"}</td>` +
+    `<td class="num">${c.calls} calls</td>` +
+    `<td class="num">${c.input_tokens.toLocaleString()} in</td>` +
+    `<td class="num">${c.output_tokens.toLocaleString()} out</td>` +
+    `<td class="usd">${usd(c.usd)}</td></tr>` +
+    `</table>${caveat}</div>`;
+}
+
 function render(job) {
   if (job.status === "failed") return renderError(job.error || "The run failed.");
 
@@ -664,6 +707,7 @@ function render(job) {
       html += `<div style="margin-top:10px">` +
         job.open_issues.map(i => `<div class="issue">${esc(i)}</div>`).join("") + `</div>`;
     }
+    html += spend(job);
     html += `</div>` + evidence(job) +
       `<div class="card report"><article>${markdown(job.report)}</article></div>`;
   }

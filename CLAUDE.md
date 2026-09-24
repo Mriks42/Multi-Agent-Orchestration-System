@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 300 tests, all offline — no API key needed
+pytest                          # 316 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -97,8 +97,25 @@ a lot in cost and in how much of the user's own time they need.
    `!  report:` and been indistinguishable from a Reviewer complaint. The bug
    fix is what let the mechanical catch be recognised as one.
 
-3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
-   a run cost?" can only be estimated -- it came up repeatedly.
+3. **DONE 2026-09-24 -- cost and token tracking per agent.** `cost.py` holds a
+   thread-safe `Ledger`; `ask`/`ask_text` take a `meter` from `Deps`, so agents
+   still never import it. Structured calls needed `include_raw=True`: the
+   parsed pydantic object carries no usage, and dropping the raw message under
+   it is what made a run unmeasurable. Printed by `mas` and shown on the page.
+
+   **The finding is where the money goes.** A live Confluent Q2 2025 run: 18
+   calls, $0.04, and the **Reviewer spent ~75% of it on 2 of the 18 calls** --
+   review is the one step on gpt-4o, at roughly 16x gpt-4o-mini per token.
+   Counting calls, which is all this project could do before, pointed at the
+   Writer and was exactly wrong. Worth telling people.
+
+   Two honesty choices, both deliberate: an unpriced model reports tokens and
+   *no* cost rather than $0.00 (a measure that moves the wrong way is worse
+   than one that does not move), and a `--distributed` run says it counted only
+   the orchestrator's calls, because workers keep their own ledgers. Prices
+   were verified against OpenAI's published pricing rather than recalled -- the
+   same discipline the hosting table and `period.py` needed.
+
 4. **Write up the two findings** (see below) somewhere a reader meets them in
    the first thirty seconds rather than digging them out of the README.
 5. **Validate the LLM judge -- deferred, and unblocked.** 28 pairs are built and

@@ -6,9 +6,10 @@ state: `build_graph(deps)` in a test gets stubs, in production gets real ones.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .config import Settings, load_settings
+from .cost import Ledger
 from .llm import ChatModel, build_chat_model
 from .tools import SearchTool, build_search_tool
 
@@ -26,6 +27,14 @@ class Deps:
     """When set, section writing is farmed out to worker processes instead of
     running as in-process concurrent branches. Typed loosely to keep the
     distributed package an optional import."""
+
+    ledger: Ledger = field(default_factory=Ledger)
+    """Token and cost tally for this run. Injected like everything else, so a
+    worker process gets its own and a test can read one."""
+
+    def meter(self, agent: str):
+        """A recorder for `ask`/`ask_text`, so agents never import Ledger."""
+        return self.ledger.meter(agent)
 
     @classmethod
     def from_settings(cls, settings: Settings | None = None, broker=None) -> "Deps":

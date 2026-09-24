@@ -421,8 +421,9 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-300 tests covering the routing table, the revision loop, budget exhaustion,
-citation validation, figure grounding, provenance labelling, fan-out dispatch,
+316 tests covering the routing table, the revision loop, budget exhaustion,
+citation validation, figure grounding, provenance labelling, cost accounting,
+fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker conformance -- leases and retries, run against both backends,
 crash recovery, checkpoint resume, eval metrics, the
@@ -458,6 +459,7 @@ src/mas/
   cli.py                `mas` entry point
   checkpoint.py         durable run state, thread ids, resume
   period.py             reporting-period validation and fiscal hints
+  cost.py               per-agent token and dollar accounting
   agents/
     research.py         plans queries, searches, extracts findings
     planning.py         findings -> outline
@@ -500,6 +502,7 @@ tests/
   test_provenance.py    unsourced findings never read as verified fact
   test_access.py        access modes, the code check, misconfiguration
   test_figures.py       figure parsing, rounding tolerance, what must not flag
+  test_cost.py          pricing, per-agent tallies, what an unpriced model must not claim
   test_review_footer.py published verdict, idempotent stamping, metric isolation
   test_cli_output.py    severity and model text survive rich markup
   test_graph.py         full graph end to end, fan-out, revision loop
@@ -520,13 +523,37 @@ against a stored baseline, **`mas-label`** collects human labels to validate the
 judge, **`mas-ablate`** varies the system instead of the company, and **`mas-serve`**
 runs the web UI.
 
-## Cost note
+## What a run costs
 
-A default run is roughly 15–25 model calls: research (2) + planning (1) +
-writer (one per section, per pass) + reviewer (one per pass). Concurrency cuts
-wall-clock time, not cost — the same calls are made, just at once. Drafting uses
-the cheaper model and only review uses the stronger one; `--no-search` and
-`--max-revisions 1` cut a run further.
+Every run prints this, measured rather than estimated — tokens come off each
+response and are tallied per agent:
+
+```
+Cost
+  Reviewer Agent   2 call(s)    9,446 in     747 out      $0.03
+  Writer Agent    13 call(s)   33,448 in   3,720 out    $0.0072
+  Research Agent   2 call(s)    2,242 in     462 out    $0.0006
+  Planning Agent   1 call(s)      821 in     708 out    $0.0005
+  ----------------------------------------------------------
+  total           18 call(s)   45,957 in   5,637 out      $0.04
+```
+
+That is a real Confluent Q2 2025 run. **The Reviewer made 2 of the 18 calls and
+spent about three quarters of the money**, because review is the one step on
+the stronger model and gpt-4o costs roughly 16x gpt-4o-mini per token. Counting
+calls would have told you the opposite of where the money goes, which is the
+reason this is measured.
+
+Concurrency cuts wall-clock time, not cost — the same calls are made, just at
+once. `--max-revisions 1` and `--no-search` cut a run further.
+
+A model missing from the price table in `cost.py` reports its tokens and says
+the cost is unknown, rather than quietly contributing $0.00. Prices were
+checked against OpenAI's published pricing on 2026-09-24; they will go stale,
+and the table says when it was last verified.
+
+In `--distributed` mode the drafting happens in worker processes with their own
+tallies, so the orchestrator's total under-reports and says so.
 
 `mas-eval` costs more: the full 12-case suite is ~12 reports plus 5 probe calls,
 so start with `--probes-only` (5 calls) or `--smoke` (2 cases). `--judge` adds

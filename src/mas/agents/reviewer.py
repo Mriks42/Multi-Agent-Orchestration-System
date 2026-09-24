@@ -111,6 +111,7 @@ def make_reviewer_node(deps: Deps):
                 revision=state.get("revision", 1),
                 max_revisions=state.get("max_revisions", 2),
             ),
+            meter=deps.meter("Reviewer Agent"),
         )
 
         # Mechanical checks the model is unreliable at, merged into its verdict.
