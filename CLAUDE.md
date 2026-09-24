@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 277 tests, all offline — no API key needed
+pytest                          # 283 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -44,6 +44,15 @@ evidence -- every finding with its sources, unsourced ones marked, every source
 as a link. Reports now carry a Review status footer stating whether they shipped
 approved. Deployment config is written and pushed but nothing is live yet.
 
+**As of 2026-09-23.** The project now also runs on a Mac (Apple silicon,
+Python 3.14.7), set up from a clean clone by the recipe above with nothing
+changed. Two things differ from the machine described below and both matter:
+`render.com` **resolves here** -- `dashboard.render.com` answers 200 in 0.3s --
+so the deploy is unblocked on this machine and needs no hotspot; and Docker is
+still absent, so step 6 stays blocked. A live Databricks run the same day put
+the pipeline through end to end at 15 model calls, inside the 15-25 the README
+claims.
+
 Four things were found by *running* it rather than reading it, and all four are
 worth knowing before changing that area:
 
@@ -64,18 +73,29 @@ a lot in cost and in how much of the user's own time they need.
 
 1. **Finish the deploy.** Everything Claude can do is done and pushed; see
    "Deployment: built, not yet live" below. It waits on ~10 minutes of the
-   user's clicking in the Render dashboard, which their current network blocks
-   at DNS -- a phone hotspot is the workaround. Nothing here needs code.
+   user's clicking in the Render dashboard. **On the Mac this is unblocked**
+   -- `render.com` resolves and the dashboard answers -- so no hotspot is
+   needed there; the DNS block recorded below is specific to the university
+   network. Nothing here needs code.
 2. **Find a live case where the figure check fires.** It is built, wired in and
-   verified not to add noise -- one live Shopify run, n=1, drafted 63 material
-   figures and the check flagged none of them. What that run does *not* show is
-   the check earning its place on a real report: its only live evidence so far
-   is the absence of false positives. It caught nothing because there was
-   nothing to catch (12/12 findings sourced, and the model's own two blockers
-   were misattribution of figures that *were* in the evidence). Worth rerunning
-   opportunistically on companies with thin coverage, where the writer is most
-   likely to invent -- but read the resolution note under Traps before reading
-   anything into a single run either way.
+   verified not to add noise -- but **n=2 now, 100 material figures drafted
+   between them, and it has flagged none**: Shopify on 2026-09-10 (63 figures,
+   12/12 findings sourced) and Databricks Q4 2025 on 2026-09-23 (37 figures,
+   10/10 sourced). Its only live evidence remains the absence of false
+   positives.
+
+   **Do not hunt for this in the `coverage="low"` tier of `evals/cases.py`.**
+   That is the obvious next move and the Databricks run closed it off. The
+   label means *no official quarterly reporting*, not *few retrievable
+   numbers*: research found 19 sources for a private company and every finding
+   came back sourced, so the writer never needed to invent. Press coverage of
+   private AI firms is saturated with valuation and ARR figures. **Thin
+   coverage is not thin sourcing**, and the tier was never the adversarial
+   condition it looks like.
+
+   That run did produce the thing this item was really after, in a different
+   shape -- see "It has no opinion about consistency" under Known problems.
+   Consider whether that retires this item rather than continuing it.
 3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
    a run cost?" can only be estimated -- it came up repeatedly.
 4. **Write up the two findings** (see below) somewhere a reader meets them in
@@ -184,6 +204,16 @@ wrong.
   - Only *material* figures are checked. Bare counts, years and quarter labels
     are skipped deliberately: a false positive costs the writer a revision it
     needed for a real defect.
+  - **It has no opinion about consistency.** Each figure is matched against the
+    evidence on its own, so two figures that are both grounded and mutually
+    contradictory both pass. The live Databricks run of 2026-09-23 is the
+    worked example: the draft carried a $5.4bn Q4 2025 revenue run-rate and a
+    $4.8bn December 2025 run-rate, both traceable to the evidence, and
+    `check_figures` raised nothing while the Reviewer raised both as blockers.
+    The two checks catch **disjoint** classes -- mechanical grounding and
+    model-judged coherence -- which is the argument for keeping both, and a
+    better one than "the mechanical check caught a fabrication" would have
+    been. Worth telling people.
   - **It compares the draft against the findings, not against reality** -- the
     same limitation already recorded below for the Reviewer. A wrong figure
     that research collected is a figure the check will happily approve. This
@@ -347,6 +377,16 @@ Do not "fix" these without discussing; each was a considered trade-off.
   `--smoke` runs only NVIDIA and Stripe, so their summary figures are two
   reports, and their high/low coverage breakdown is one company per tier. Read
   `len(result["cases"])` rather than assuming a run is suite-wide.
+- **`rich` eats square brackets, including the model's.** `console.print`
+  parses `[...]` as markup, so a severity label or a model-written citation
+  marker like `[2]` vanishes silently unless escaped. This shipped and lasted:
+  every CLI run printed its issues with **no severity at all**, and the README
+  documented sample output the code could not produce. It went unseen because
+  the markdown report footer renders severity correctly, and that is where it
+  was being read -- the terminal and the file disagreed and only the file was
+  checked. Fixed on 2026-09-23 with `rich.markup.escape`; `tests/test_cli_output.py`
+  asserts on rendered text, because the f-string looked right the whole time it
+  was wrong. Escape anything the model wrote before printing it.
 - **Heredocs mangle `\n` inside Python string literals.** Several edits broke
   this way; use the Edit tool for anything containing escape sequences.
 - **Label with `mas-label`, not by editing `evals/labels.json`.** Hand-editing
