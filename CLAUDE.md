@@ -106,7 +106,7 @@ Both decisions are made and the config is written, committed and pushed.
 **Render free tier, Docker, access mode `gallery`.** What remains is the user's
 ten minutes in a dashboard; there is no code left to write.
 
-**What exists** (all on `main`, pushed to `github.com/Mriks42/Multi-Agent-Orchestration-System-`):
+**What exists** (all on `main`, pushed to `github.com/Mriks42/Multi-Agent-Orchestration-System`):
 
 - `Dockerfile` -- one image for every host. Runs as UID 1000 and defaults to
   port 7860 because Hugging Face wants both; reads `$PORT` so Render, Lightsail,

@@ -263,7 +263,7 @@ real footnote. The Reviewer then gets those findings as its *only* ground truth,
 which is what makes fact-checking mean something concrete rather than a vibe check.
 
 **The loop is bounded and the exit condition is enforced.** `route_after_review`
-([graph.py](src/mas/graph.py#L50)) sends an unapproved draft back to the Writer
+([graph.py](src/mas/graph.py#L68)) sends an unapproved draft back to the Writer
 until `max_revisions` is hit, then publishes with the open issues listed. The
 Reviewer's own `approved` flag drives that exit, so the node overrides an
 approval that contradicts its own blocker issues rather than trusting the model
