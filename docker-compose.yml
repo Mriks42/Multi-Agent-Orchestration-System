@@ -1,0 +1,80 @@
+# The distributed path with a broker nobody owns.
+#
+# `SqliteBroker` proves the queue coordinates across processes; it cannot prove
+# it coordinates across *machines*, because every process shares one file. Redis
+# is the version that could, and this file is how that gets exercised: three
+# containers, separate filesystems, reaching one queue over the network.
+#
+#   docker compose up --build            # redis, one orchestrator, two workers
+#   docker compose run --rm orchestrator mas --company Datadog --quarter "Q1 2025" \
+#       --distributed --queue redis://redis:6379/0
+#
+# Worth knowing before reading anything into the timings: distribution is
+# *slower* for a single report (30s vs 24s threaded), because broker
+# round-trips cost more than the parallelism saves. What it buys is fault
+# tolerance and throughput across many reports -- kill a worker mid-run and its
+# section is reclaimed and rewritten rather than lost. That is the thing worth
+# demonstrating here, not a speedup.
+
+name: mas
+
+services:
+  redis:
+    image: redis:8-alpine
+    # No persistence: the queue is live coordination state, not a record. A
+    # restart should lose it -- `mas --resume` and the checkpointer are what
+    # make a run survivable, not the broker.
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Workers do the drafting. Scale them with `--scale worker=N`; each claims
+  # whatever is pending, so the split across them is decided by the queue
+  # rather than assigned up front.
+  worker:
+    build: .
+    image: mas:local
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set it in .env or the environment}
+      MAS_MODEL: ${MAS_MODEL:-gpt-4o-mini}
+      MAS_REVIEWER_MODEL: ${MAS_REVIEWER_MODEL:-gpt-4o}
+    # Override the image's web CMD: this container is a queue consumer.
+    entrypoint: ["mas-worker"]
+    command: ["--queue", "redis://redis:6379/0"]
+    deploy:
+      replicas: 2
+    restart: unless-stopped
+
+  # The orchestrator runs research, planning and review, and farms section
+  # drafting out to the workers above. It exits when the report is written, so
+  # it does not restart -- `docker compose run` is the way to drive it.
+  orchestrator:
+    build: .
+    image: mas:local
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set it in .env or the environment}
+      MAS_MODEL: ${MAS_MODEL:-gpt-4o-mini}
+      MAS_REVIEWER_MODEL: ${MAS_REVIEWER_MODEL:-gpt-4o}
+    entrypoint: ["mas"]
+    # Overridden by `docker compose run`; this is the default demonstration.
+    command:
+      - "--company"
+      - "Datadog"
+      - "--quarter"
+      - "Q1 2025"
+      - "--distributed"
+      - "--queue"
+      - "redis://redis:6379/0"
+    volumes:
+      # Reports outlive the container that wrote them.
+      - ./reports:/home/app/reports
+    restart: "no"

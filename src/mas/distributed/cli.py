@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from ..config import load_settings
 from ..deps import Deps
 from ..llm import MissingAPIKey
-from .sqlite_broker import SqliteBroker
+from . import open_broker
 from .worker import Worker, default_worker_id
 
 log = logging.getLogger("mas.worker")
@@ -29,7 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="mas-worker",
         description="Run a worker that writes report sections from the shared queue.",
     )
-    parser.add_argument("--queue", default=None, help="Path to the SQLite queue file")
+    parser.add_argument(
+        "--queue", default=None,
+        help="Shared queue: a file path (SQLite) or a redis:// URL",
+    )
     parser.add_argument("--id", default=None, help="Worker id (default: host-pid)")
     parser.add_argument(
         "--max-tasks", type=int, default=None, help="Exit after handling this many tasks"
@@ -57,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
         print(exc, file=sys.stderr)
         return 2
 
-    broker = SqliteBroker(args.queue or settings.broker_path)
+    broker = open_broker(args.queue or settings.broker_path)
     worker = Worker(
         broker,
         deps,

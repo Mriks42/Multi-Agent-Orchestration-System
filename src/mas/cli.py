@@ -67,7 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Farm section writing out to mas-worker processes via a shared queue",
     )
-    parser.add_argument("--queue", default=None, help="Queue file for --distributed")
+    parser.add_argument(
+        "--queue", default=None,
+        help="Queue for --distributed: a file path (SQLite) or redis:// URL",
+    )
     parser.add_argument(
         "--resume",
         action="store_true",
@@ -142,9 +145,9 @@ def main(argv: list[str] | None = None) -> int:
 
     broker = None
     if args.distributed:
-        from .distributed import SqliteBroker
+        from .distributed import open_broker
 
-        broker = SqliteBroker(args.queue or settings.broker_path)
+        broker = open_broker(args.queue or settings.broker_path)
 
     try:
         deps = Deps.from_settings(settings, broker=broker)

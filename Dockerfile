@@ -15,6 +15,13 @@ WORKDIR /home/app
 COPY --chown=app:app requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# This image is the worker image too, and a worker can be pointed at a Redis
+# queue (see docker-compose.yml), so the optional extra is installed here.
+# requirements.txt stays server-free on purpose: SqliteBroker is the default so
+# that a laptop run needs nothing installed, and that must not change because
+# the deployed image happens to want Redis.
+RUN pip install --no-cache-dir "redis>=5.0"
+
 COPY --chown=app:app src/ ./src/
 COPY --chown=app:app gallery/ ./gallery/
 RUN pip install --no-cache-dir --no-deps -e .

@@ -18,7 +18,7 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 284 tests, all offline — no API key needed
+pytest                          # 298 tests, all offline — no API key needed
 ```
 
 Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
@@ -48,8 +48,9 @@ approved. Deployment config is written and pushed but nothing is live yet.
 Python 3.14.7), set up from a clean clone by the recipe above with nothing
 changed. Two things differ from the machine described below and both matter:
 `render.com` **resolves here** -- `dashboard.render.com` answers 200 in 0.3s --
-so the deploy is unblocked on this machine and needs no hotspot; and Docker is
-still absent, so step 6 stays blocked. A live Databricks run the same day put
+so the deploy is unblocked on this machine and needs no hotspot; and Docker
+now exists here via colima, which unblocked step 6 and let the image finally be
+built. A live Databricks run the same day put
 the pipeline through end to end at 15 model calls, inside the 15-25 the README
 claims.
 
@@ -77,25 +78,25 @@ a lot in cost and in how much of the user's own time they need.
    -- `render.com` resolves and the dashboard answers -- so no hotspot is
    needed there; the DNS block recorded below is specific to the university
    network. Nothing here needs code.
-2. **Find a live case where the figure check fires.** It is built, wired in and
-   verified not to add noise -- but **n=2 now, 100 material figures drafted
-   between them, and it has flagged none**: Shopify on 2026-09-10 (63 figures,
-   12/12 findings sourced) and Databricks Q4 2025 on 2026-09-23 (37 figures,
-   10/10 sourced). Its only live evidence remains the absence of false
-   positives.
+2. **DONE 2026-09-24 -- the figure check fired on a real report.** It took
+   n=3. The Datadog Q1 2025 run over the Redis/compose stack drafted a "13%"
+   that appeared in no finding and no source, and `check_figures` raised it:
+   *major*, section-less, exactly as designed. The two earlier runs (Shopify
+   63 figures, Databricks 37) flagged nothing, so its live record is now one
+   catch in three runs and still zero false positives.
 
-   **Do not hunt for this in the `coverage="low"` tier of `evals/cases.py`.**
-   That is the obvious next move and the Databricks run closed it off. The
-   label means *no official quarterly reporting*, not *few retrievable
-   numbers*: research found 19 sources for a private company and every finding
-   came back sourced, so the writer never needed to invent. Press coverage of
-   private AI firms is saturated with valuation and ARR figures. **Thin
-   coverage is not thin sourcing**, and the tier was never the adversarial
-   condition it looks like.
+   Read it for what it is. One catch is not a hit rate, and the check still
+   cannot tell a derived figure from an invented one -- "13%" may well have
+   been a legitimate derivation the writer failed to show, which is precisely
+   why it raises major and offers the derivation route. What the run does
+   settle is the thing n=1 could not: the check earns its place on a real
+   report rather than only on the probe suite.
 
-   That run did produce the thing this item was really after, in a different
-   shape -- see "It has no opinion about consistency" under Known problems.
-   Consider whether that retires this item rather than continuing it.
+   Note what made it legible. The CLI had been swallowing severity labels
+   (see Traps), so before that fix this would have printed as a bare
+   `!  report:` and been indistinguishable from a Reviewer complaint. The bug
+   fix is what let the mechanical catch be recognised as one.
+
 3. **Cost and token tracking per agent.** Nothing measures spend, so "what does
    a run cost?" can only be estimated -- it came up repeatedly.
 4. **Write up the two findings** (see below) somewhere a reader meets them in
@@ -104,34 +105,31 @@ a lot in cost and in how much of the user's own time they need.
    committed, so no further eval runs are needed. It waits only on the user
    spending ~20 minutes in `mas-label`. Lower priority than it looks: the
    ablation already validated the judge where it counts.
-6. **Redis broker + Docker Compose -- deferred, and still blocked.** `Broker` is
-   a protocol, so this is one new file (`distributed/redis_broker.py`, mirroring
-   `sqlite_broker.py`) plus a compose file standing up Redis, one orchestrator
-   and two `mas-worker`s. **Docker is still not installed on this machine** --
-   `docker --version` is not found -- so the *compose* half can be written but
-   not run. Check for Docker before starting.
+6. **DONE 2026-09-24 -- Redis broker and Docker Compose both run.**
+   `distributed/redis_broker.py` implements `Broker` over Redis: a Lua script
+   per mutation, because `EVAL` is atomic and that is what buys the same
+   property `BEGIN IMMEDIATE` buys in SQLite. `pending` is a ZSET scored by
+   `created_at`, so a reclaimed task returns to its place in the order rather
+   than the back of a queue; `running` is scored by lease expiry so
+   `reclaim_expired` is one range query.
 
-   The broker half is separable and less blocked than it looks: it needs a
-   Redis, not Docker, and `brew install redis` supplies one natively on the
-   Mac. Only the compose demo genuinely requires a container runtime, and
-   `brew install colima docker` gives that without Docker Desktop if it comes
-   to it -- which would also let the `Dockerfile` finally be built locally
-   instead of first on Render.
+   **The protocol claim is now proven rather than asserted**: all twelve
+   conformance tests pass against both backends, with no change to any test
+   body -- registering the backend was one `BACKENDS` entry. `open_broker()`
+   picks the backend from the queue string so `mas` and `mas-worker` cannot
+   read one `--queue` differently.
 
-   **`tests/test_broker.py` is a conformance suite as of 2026-09-24**, so a
-   second backend is now one `BACKENDS` entry away from inheriting all eleven
-   guarantee tests; before that it named `SqliteBroker` directly and a new
-   backend would have started at zero coverage. `renew` and `stats` are
-   deliberately off the protocol -- `worker.py` duck-types `renew` and falls
-   back to a generous lease -- so those two tests skip rather than fail on a
-   backend that omits them. SQLite was never a stopgap: the original commit
-   chose it so the distributed path runs on a laptop with no server, and said
-   even then that the contract "fits Redis for deployment".
-   Worth knowing it buys nothing for a single report: distribution is *slower*
-   (30s vs 24s threaded). It buys fault tolerance and throughput across many
-   reports, and a second broker implementation is what proves `Broker` was
-   really a protocol rather than SQLite with extra steps. That last point is
-   the actual reason to do it -- it is a portfolio argument, not a feature.
+   `docker-compose.yml` stands up Redis, two workers and an orchestrator.
+   Verified live: a Datadog Q1 2025 report where two *containers* with
+   separate filesystems split the drafting over one Redis queue. Still not a
+   speedup, and the file says so.
+
+   `redis` is an optional extra, not a runtime dependency -- `SqliteBroker`
+   remains the default so a laptop run needs nothing installed. The image
+   carries the client because it is also the worker image; the conformance
+   suite skips the Redis backend when no server answers, so `pytest` stays
+   green offline. Both were found by running it: the first compose boot died
+   on `ModuleNotFoundError: redis` because the extra was not in the image.
 
 Not on this list, deliberately: **more replicates so the eval can resolve small
 prompt changes.** It would cost 3x per experiment to detect effects that did not
@@ -147,9 +145,12 @@ ten minutes in a dashboard; there is no code left to write.
 
 - `Dockerfile` -- one image for every host. Runs as UID 1000 and defaults to
   port 7860 because Hugging Face wants both; reads `$PORT` so Render, Lightsail,
-  EC2 and Fargate all work unchanged. **Never built** -- Docker is not installed
-  here, so the first real build happens on the platform. Expect the possibility
-  of one build error and fix it from the log.
+  EC2 and Fargate all work unchanged. **Built and run locally on 2026-09-24**
+  (colima, linux/arm64): it built clean on the first attempt, served
+  `/api/health` and the gallery, and `id` in the container reports uid 1000.
+  The Render build is no longer a gamble -- though it builds amd64 there, and
+  only the platform can prove that. One change since: the image installs the
+  `redis` extra, because it is the worker image too.
 - `render.yaml` -- Blueprint, `plan: free`, `numInstances: 1`, both secrets
   `sync: false` so the file describes the deploy without containing the key.
 - `.github/workflows/keep-warm.yml` -- pings `/api/health` every 10 minutes.
@@ -210,7 +211,9 @@ wrong.
   percentage, magnitude -- out of the draft and matches it against the findings
   and sources, raising an issue for anything grounded in neither. Against the
   probe suite with a reviewer that approves everything, the mechanical checks
-  alone now catch 3 of 4 planted defects, up from 1. What it does **not** do:
+  alone now catch 3 of 4 planted defects, up from 1. **It has now caught one
+  live too**: a "13%" grounded in nothing, on the Datadog run of 2026-09-24 --
+  the third live run to exercise it. What it does **not** do:
   - It cannot tell a derived figure ("up 31%", computed from two findings) from
     an invented one, which is why it raises "major" and not "blocker", and why
     the fix text offers the writer the derivation route explicitly.
@@ -237,7 +240,7 @@ wrong.
     also rules out `--no-search` as an adversarial test of it: the writer takes
     its figures from the invented findings, so they match and pass.
 - **No report has ever been approved** -- 0 of 12 in the full suite, every run,
-  and 0 of 13 counting the live Shopify run of 2026-09-10. Largely downstream of
+  and 0 of 15 counting the three live runs of 2026-09-10, -23 and -24. Largely downstream of
   the above: the reviewer keeps finding invented figures and is right to. Worth
   knowing that approval also requires no *major* issues, so a single substantive
   gap blocks a report; that bar is a judgement call rather than a bug.
@@ -404,6 +407,12 @@ Do not "fix" these without discussing; each was a considered trade-off.
   checked. Fixed on 2026-09-23 with `rich.markup.escape`; `tests/test_cli_output.py`
   asserts on rendered text, because the f-string looked right the whole time it
   was wrong. Escape anything the model wrote before printing it.
+- **An optional extra is not optional inside the image.** The first compose
+  boot died on `ModuleNotFoundError: redis`: the client is an extra in
+  `pyproject.toml` but the `Dockerfile` installs `requirements.txt`, which
+  deliberately has no server dependencies. The image now installs it
+  explicitly, because the image is the worker image too. Anything reached only
+  through an extra needs checking against the image, not just the venv.
 - **Heredocs mangle `\n` inside Python string literals.** Several edits broke
   this way; use the Edit tool for anything containing escape sequences.
 - **Label with `mas-label`, not by editing `evals/labels.json`.** Hand-editing

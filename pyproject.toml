@@ -20,7 +20,13 @@ mas-serve = "mas.web.cli:main"
 [project.optional-dependencies]
 # The suite runs fully offline, but needs pytest itself and httpx, which
 # fastapi.testclient imports. Neither is a runtime dependency.
-dev = ["pytest>=8.0", "httpx>=0.27"]
+dev = ["pytest>=8.0", "httpx>=0.27", "redis>=5.0"]
+
+# The Redis backend is optional: `SqliteBroker` is the default precisely so the
+# distributed path needs no server. Only the client is declared here -- the
+# conformance suite skips when no server answers, so `[dev]` stays installable
+# and the suite stays green offline.
+redis = ["redis>=5.0"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

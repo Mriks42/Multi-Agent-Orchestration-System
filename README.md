@@ -210,8 +210,39 @@ task returns to the queue, and another worker picks it up — the report still
 completes. With no worker left running, the orchestrator waits out
 `task_timeout` and exits with a clear error rather than hanging.
 
-Redis is the natural backend for real deployment; `Broker` is a protocol, so it
-is a drop-in alongside the SQLite one.
+### The same queue, on Redis
+
+`Broker` is a protocol and there are two implementations of it, which is the
+only way that claim means anything. Pass a URL instead of a path and nothing
+else changes — `open_broker()` picks the backend, so the orchestrator and the
+workers cannot read one `--queue` differently:
+
+```bash
+mas-worker --queue redis://localhost:6379/0
+mas --company "Datadog" --quarter "Q1 2025" --distributed --queue redis://localhost:6379/0
+```
+
+Where SQLite takes a write lock, Redis runs a Lua script: `EVAL` is atomic, so
+the read-then-write inside a claim cannot interleave with another worker's.
+Every conformance test in `tests/test_broker.py` runs against both backends
+unchanged; the Redis ones skip when no server answers, so the suite stays green
+offline. Install the client with `pip install -e ".[redis]"` — it is an optional
+extra, because `SqliteBroker` is the default precisely so that nothing needs
+installing.
+
+`docker-compose.yml` runs the whole thing as separate containers — Redis, an
+orchestrator and two workers:
+
+```bash
+docker compose up -d redis worker
+docker compose run --rm orchestrator --company "Datadog" --quarter "Q1 2025" \
+    --distributed --queue redis://redis:6379/0
+```
+
+That is the version SQLite cannot demonstrate: two containers with separate
+filesystems, splitting one report over a queue that neither of them owns.
+**It is still not faster** — broker round-trips cost more than the parallelism
+saves. It buys fault tolerance and throughput across many reports.
 
 ## Surviving an interrupted run
 
@@ -390,11 +421,11 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-284 tests covering the routing table, the revision loop, budget exhaustion,
+298 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
-broker conformance -- leases and retries, run against every registered
-backend rather than one, crash recovery, checkpoint resume, eval metrics, the
+broker conformance -- leases and retries, run against both backends,
+crash recovery, checkpoint resume, eval metrics, the
 judge's bias controls, the HTTP API, and that every command still imports and
 parses — all offline. One test spawns two real subprocesses to prove the
 queue coordinates across processes.
@@ -457,6 +488,7 @@ src/mas/
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
+    redis_broker.py     the same contract over Redis: atomic claims via Lua
     worker.py           claim -> write -> complete loop, lease renewal
     cli.py              `mas-worker` entry point
 

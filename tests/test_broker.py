@@ -30,14 +30,18 @@ second backend.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+import uuid
 from contextlib import contextmanager
 from typing import Callable
 
 import pytest
 
-from mas.distributed import BrokerError, SqliteBroker, TaskState
+from mas.distributed import BrokerError, RedisBroker, SqliteBroker, TaskState
+
+REDIS_URL = os.getenv("MAS_TEST_REDIS_URL", "redis://localhost:6379/15")
 
 
 class Backend:
@@ -69,7 +73,34 @@ def _sqlite(tmp_path) -> Backend:
     return Backend("sqlite", lambda: SqliteBroker(path, poll_interval=0.01))
 
 
-BACKENDS = [pytest.param(_sqlite, id="sqlite")]
+def _redis(tmp_path) -> Backend:
+    # A prefix per test, so runs never collide and nothing needs flushing --
+    # the suite must be safe to point at a Redis that holds other things.
+    prefix = f"mastest:{uuid.uuid4().hex}:"
+    return Backend("redis", lambda: RedisBroker(REDIS_URL, prefix=prefix, poll_interval=0.01))
+
+
+def _redis_unreachable() -> str:
+    """Skip reason when no server answers, so the suite stays green offline."""
+    try:
+        import redis
+    except ImportError:
+        return "redis-py not installed (pip install -e '.[redis]')"
+    try:
+        redis.Redis.from_url(REDIS_URL, socket_connect_timeout=0.5).ping()
+    except Exception as exc:
+        return f"no Redis at {REDIS_URL}: {type(exc).__name__}"
+    return ""
+
+
+BACKENDS = [
+    pytest.param(_sqlite, id="sqlite"),
+    pytest.param(
+        _redis,
+        id="redis",
+        marks=pytest.mark.skipif(bool(_redis_unreachable()), reason=_redis_unreachable()),
+    ),
+]
 
 
 @pytest.fixture(params=BACKENDS)
@@ -231,3 +262,25 @@ def test_every_protocol_method_is_implemented(broker):
     required = ["submit", "claim", "complete", "fail", "reclaim_expired", "gather", "close"]
     missing = [name for name in required if not callable(getattr(broker, name, None))]
     assert not missing, f"{type(broker).__name__} is missing {missing}"
+
+
+def test_open_broker_picks_the_backend_from_the_queue_string(tmp_path):
+    """`mas` and `mas-worker` must read one --queue the same way.
+
+    A mismatch does not raise: the worker would poll an empty SQLite file while
+    the orchestrator waited on Redis, and the run would end in a timeout that
+    looks like slow workers rather than a misconfiguration.
+
+    Constructing a RedisBroker connects to nothing -- redis-py dials on first
+    use -- so this stays offline even for an address that does not exist.
+    """
+    from mas.distributed import RedisBroker, SqliteBroker, open_broker
+
+    sqlite = open_broker(tmp_path / "queue.db")
+    assert isinstance(sqlite, SqliteBroker)
+    sqlite.close()
+
+    for url in ("redis://localhost:6379/15", "rediss://nonexistent.invalid:6380/0"):
+        broker = open_broker(url)
+        assert isinstance(broker, RedisBroker), url
+        broker.close()
