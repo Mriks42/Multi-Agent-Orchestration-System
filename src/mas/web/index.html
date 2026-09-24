@@ -623,27 +623,32 @@ function render(job) {
   const seen = new Set(done.map(s => s.agent));
   const running = job.status === "running" || job.status === "queued";
 
-  // One row per agent, so the pipeline is visible before it has finished.
-  const rows = AGENTS.map(name => {
-    const mine = done.filter(s => s.agent === name);
-    if (mine.length) {
-      return mine.map(s => {
-        const took = s.seconds ? `<span class="took">${s.seconds.toFixed(1)}s</span>` : "";
-        // The fan-out is the point of the project, so show the branches that
-        // ran at once rather than collapsing them into a single step.
-        const fan = (s.parallel || []).length > 1
-          ? `<div class="fan"><span class="fanlabel">${s.parallel.length} in parallel</span>` +
-            s.parallel.map(h => `<span class="branch">${esc(h)}</span>`).join("") + `</div>`
-          : "";
-        return `<li><span class="name">${esc(name)}</span>` +
-          `<span class="detail">${esc(s.detail)}${fan}</span>${took}</li>`;
-      }).join("");
-    }
-    const isNext = running && !seen.has(name) &&
-      AGENTS.slice(0, AGENTS.indexOf(name)).every(a => seen.has(a));
-    return `<li class="pending"><span class="name">${esc(name)}</span>` +
-      `<span class="detail">${isNext ? '<span class="spin"></span> working' : "waiting"}</span></li>`;
-  }).join("");
+  // Steps in the order they happened. Never grouped by agent: the revision
+  // loop *is* the interleaving of Writer and Reviewer, and grouping each
+  // agent's rows together rendered "pass 2, 7 revised" above the review that
+  // asked for it -- an effect shown before its cause, and the one thing this
+  // page exists to make legible.
+  const step = s => {
+    const took = s.seconds ? `<span class="took">${s.seconds.toFixed(1)}s</span>` : "";
+    // The fan-out is the point of the project, so show the branches that
+    // ran at once rather than collapsing them into a single step.
+    const fan = (s.parallel || []).length > 1
+      ? `<div class="fan"><span class="fanlabel">${s.parallel.length} in parallel</span>` +
+        s.parallel.map(h => `<span class="branch">${esc(h)}</span>`).join("") + `</div>`
+      : "";
+    return `<li><span class="name">${esc(s.agent)}</span>` +
+      `<span class="detail">${esc(s.detail)}${fan}</span>${took}</li>`;
+  };
+
+  // Agents that have not run yet, so the pipeline is visible before it
+  // finishes. They follow the completed steps because they are still to come;
+  // the first of them is the one currently working.
+  const upcoming = AGENTS.filter(name => !seen.has(name));
+  const rows = done.map(step).join("") +
+    upcoming.map((name, i) =>
+      `<li class="pending"><span class="name">${esc(name)}</span>` +
+      `<span class="detail">${running && i === 0 ? '<span class="spin"></span> working' : "waiting"}</span></li>`
+    ).join("");
 
   let html = `<div class="card"><ul class="agents">${rows}</ul></div>`;
 

@@ -370,3 +370,35 @@ def test_sources_keep_the_indices_the_report_cites(client):
 
     cited = {i for f in body["findings"] for i in f["source_ids"]}
     assert all(i < len(body["sources"]) for i in cited), "every cited index resolves"
+
+
+def test_steps_come_back_in_the_order_they_happened():
+    """The page renders steps in the order this list gives them.
+
+    It used to group them by agent instead, which put "pass 2, 7 sections
+    revised" above the review that asked for the revision -- an effect shown
+    before its cause, and it hid the revise cycle the page exists to show. The
+    page now trusts this order, so the order is the contract.
+    """
+    writer, reviewer = build_models(reviews=[
+        Review(approved=False, issues=[
+            Issue(severity="major", section="Financial Performance",
+                  problem="unsupported", fix="cite it"),
+        ]),
+        Review(approved=True),
+    ])
+    client = TestClient(create_app(
+        deps=make_deps(writer, reviewer, search=lambda q, n=5: [SOURCE]),
+        store=JobStore(), max_revisions=2,
+    ))
+
+    job_id = client.post("/api/reports", json={"company": "Acme", "quarter": "Q1 2025"}).json()["id"]
+    agents = [s["agent"] for s in wait_for(client, job_id)["steps"]]
+
+    # A revision happened, so the Writer must appear both before and after a
+    # Reviewer step. Grouping by agent makes that impossible to express.
+    first_review = agents.index("Reviewer Agent")
+    assert "Writer Agent" in agents[:first_review], "no drafting before the first review"
+    assert "Writer Agent" in agents[first_review:], (
+        f"the revision pass must follow the review that asked for it: {agents}"
+    )
