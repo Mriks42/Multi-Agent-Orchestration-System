@@ -11,6 +11,11 @@ reports/*.md
 mas-queue.db
 mas-queue.db-*
 
+# MCP audit trail. Secrets are masked in it, but it is a run artefact like the
+# queue and the checkpoints, and the default path is the repo root.
+mas-mcp-audit.jsonl
+mas-mcp-audit*.jsonl
+
 # LangGraph run checkpoints
 mas-runs.db
 mas-runs.db-*
