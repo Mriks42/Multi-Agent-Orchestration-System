@@ -169,6 +169,89 @@ a retrieved source" does not say *which* one is not, and a citation nobody can
 follow proves nothing. Unsourced findings are marked in place, so the gap is
 visible rather than merely counted.
 
+## MCP server
+
+The same pipeline, exposed to an AI agent instead of a person. `mas-mcp` speaks
+[MCP](https://modelcontextprotocol.io) over stdio, so a client such as Claude
+Desktop can research a company and inspect the evidence itself.
+
+```bash
+pip install -e ".[mcp]"      # optional extra; the default install is unchanged
+mas-mcp                      # serves on stdio
+```
+
+| tool | what it does |
+| --- | --- |
+| `run_report` | Starts a report, returns a `job_id` immediately. Spends credits. |
+| `get_report_status` | Progress and timings; when done, the report, provenance, review verdict and per-agent cost. |
+| `get_report_evidence` | Every finding with its sources, unsourced ones marked, numbered to match the `[n]` markers. |
+| `list_gallery_reports` | The saved reports. Costs nothing. |
+| `get_gallery_report` | One saved report in full. Also readable as the resource `gallery://<slug>`. |
+
+A report takes 25–40s, so `run_report` does not block: it returns a `job_id` and
+the caller polls `get_report_status`. Errors come back structured —
+`{code, message, fix}` — because a model cannot act on "that didn't work", and
+an error it cannot act on becomes a retry of the identical call.
+
+### Who may call what
+
+The existing `MAS_ACCESS` modes carry over unchanged:
+
+| mode | reading saved reports | `run_report` |
+| --- | --- | --- |
+| `gallery` (default) | no code | **code required** |
+| `locked` | code required | code required |
+| `open` | no code | no code |
+
+Like `mas-serve`, the server **refuses to start** in `gallery` or `locked` mode
+with no `MAS_ACCESS_CODE` — a deployment that silently exposed the key because
+a variable was misspelled is the failure that exists to prevent. Codes are
+compared in constant time, and neither the code nor `OPENAI_API_KEY` appears in
+any response, error or log.
+
+One thing a person did not need: **a ceiling on spending.** A person clicks
+once, an agent can loop, so `run_report` refuses once `MAS_MCP_MAX_JOBS`
+reports are in flight (default 2).
+
+### The audit trail
+
+Every call is appended to `mas-mcp-audit.jsonl` (override with `MAS_MCP_AUDIT`),
+written off the calling thread so logging never slows a tool:
+
+```json
+{"ts": "2026-10-12T23:41:15Z", "request_id": "a3f1c8e20b74", "tool": "run_report",
+ "args": {"company": "Datadog", "quarter": "Q1 2025", "access_code": "***"},
+ "access_mode": "gallery", "allowed": false, "outcome": "forbidden",
+ "reason": "MAS_ACCESS=gallery requires an access code to run a report, which spends API credits."}
+```
+
+**Refusals are recorded too.** A success-only log answers what the agent did and
+never what it tried, and an agent probing `run_report` without a code is exactly
+the thing worth seeing. The access code is masked by name, so a wrong guess is
+logged as an event without the guess being written down.
+
+### Connecting a client
+
+```json
+{
+  "mcpServers": {
+    "mas": {
+      "command": "/path/to/.venv/bin/mas-mcp",
+      "env": {
+        "OPENAI_API_KEY": "sk-...",
+        "MAS_ACCESS": "gallery",
+        "MAS_ACCESS_CODE": "your-code",
+        "MAS_MCP_AUDIT": "/path/to/mas-mcp-audit.jsonl"
+      }
+    }
+  }
+}
+```
+
+[`examples/mcp_client_demo.py`](examples/mcp_client_demo.py) does the same thing
+in a script — lists the tools, reads a saved report, shows a refusal, and prints
+the audit tail. It runs in gallery mode and spends nothing.
+
 ## Deploying it
 
 Live at **https://multi-agent-research-k2ag.onrender.com**, deployed from
@@ -472,8 +555,9 @@ pip install -e ".[dev]"     # pytest and httpx; not needed just to run a report
 pytest
 ```
 
-319 tests covering the routing table, the revision loop, budget exhaustion,
+356 tests covering the routing table, the revision loop, budget exhaustion,
 citation validation, figure grounding, provenance labelling, cost accounting,
+MCP access modes and audit masking,
 fan-out dispatch,
 that section drafting genuinely overlaps in time rather than only nominally,
 broker conformance -- leases and retries, run against both backends,
@@ -538,6 +622,10 @@ src/mas/
     jobs.py             in-process job store, progress per agent
     index.html          the page
     cli.py              `mas-serve` entry point
+  mcp/
+    server.py           MCP tools over the pipeline; structured errors
+    audit.py            append-only JSONL record of every tool call
+    cli.py              `mas-mcp` entry point (stdio)
   distributed/
     broker.py           Broker protocol, Task lifecycle, lease semantics
     sqlite_broker.py    single-file queue: WAL + BEGIN IMMEDIATE claims
@@ -566,13 +654,15 @@ tests/
   test_period.py        period validation, fiscal hints, trace accuracy
   test_entrypoints.py   every module imports, every command parses
   test_web.py           the API end to end, offline
+  test_mcp.py           MCP access modes, structured errors, audit masking
 ```
 
-Six commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
+Seven commands are installed: **`mas`** runs a report, **`mas-worker`** runs a
 worker that writes sections from the queue, **`mas-eval`** scores the pipeline
 against a stored baseline, **`mas-label`** collects human labels to validate the
-judge, **`mas-ablate`** varies the system instead of the company, and **`mas-serve`**
-runs the web UI.
+judge, **`mas-ablate`** varies the system instead of the company, **`mas-serve`**
+runs the web UI, and **`mas-mcp`** serves the same pipeline to an AI agent over
+MCP.
 
 ## What a run costs
 

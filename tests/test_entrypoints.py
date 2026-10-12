@@ -25,6 +25,7 @@ ENTRY_POINTS = [
     ("mas.evals.label_cli", "mas-label"),
     ("mas.evals.ablate_cli", "mas-ablate"),
     ("mas.web.cli", "mas-serve"),
+    ("mas.mcp.cli", "mas-mcp"),
 ]
 
 

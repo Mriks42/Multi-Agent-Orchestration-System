@@ -18,12 +18,13 @@ python -m venv .venv
 .venv/Scripts/activate          # Windows; bin/activate elsewhere
 pip install -e ".[dev]"         # the [dev] extra is what brings in pytest
 cp .env.example .env            # then add a real OPENAI_API_KEY
-pytest                          # 319 tests, all offline — no API key needed
+pytest                          # 356 tests, all offline — no API key needed
 ```
 
-Built on Python 3.14. Six commands: `mas` (write a report), `mas-serve` (web
+Built on Python 3.14. Seven commands: `mas` (write a report), `mas-serve` (web
 UI), `mas-worker` (section worker), `mas-eval` (score the pipeline), `mas-label`
-(human labels for the judge), `mas-ablate` (vary the system, not the company).
+(human labels for the judge), `mas-ablate` (vary the system, not the company),
+`mas-mcp` (serve the pipeline to an AI agent over MCP).
 
 `.env` is gitignored and has never been committed — it will not come across with
 the repo, so the key must be added by hand on each machine.
@@ -390,6 +391,20 @@ Do not "fix" these without discussing; each was a considered trade-off.
   throughput across many reports — claim those, not a speedup.
 
 ## Traps
+
+- **The MCP SDK renamed `FastMCP` to `MCPServer` in 2.x.** v1 code importing
+  `mcp.server.fastmcp` dies with a message pointing at the migration guide.
+  `mas/mcp/server.py` targets 2.x, and `Tool.inputSchema` is `input_schema`
+  there too -- the rename is not only the class. Check the installed version
+  before writing against remembered API names, the same discipline the hosting
+  table and the price table needed.
+- **An optional extra must not break `test_every_module_imports`.** That test
+  walks every module under `mas.` and imports it, so a top-level `import mcp`
+  in `mas/mcp/server.py` would fail the suite on a default install. The SDK is
+  imported inside `build_server`, mirroring how `redis_broker.py` imports its
+  client, and `tests/test_mcp.py` guards with `pytest.importorskip`. Verified
+  by running the suite with `sys.modules["mcp"] = None`: the MCP tests skip and
+  every entry-point test still passes.
 
 - **Never run with a fictional company** (`"Company X"`). Search finds nothing,
   the model invents everything, and the report looks plausible and is entirely
