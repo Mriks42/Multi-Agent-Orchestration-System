@@ -55,6 +55,21 @@ built. A live Databricks run the same day put
 the pipeline through end to end at 15 model calls, inside the 15-25 the README
 claims.
 
+**As of 2026-10-12.** An MCP server (`mas-mcp`, optional extra) exposes the
+pipeline to an agent over stdio: run, poll, read the evidence, browse the
+gallery. **Verified live, not only against fakes** -- a Twilio Q2 2025 report
+driven entirely through the MCP client: the gate refused the call without a
+code, `run_report` returned a job id in 0.39s without blocking a 30.4s run,
+polling showed the fan-out and the revise cycle, and the evidence came back
+with the one unsourced finding of ten marked. Cost $0.0274, of which the
+Reviewer took 83% on 2 of 13 calls -- the fifth run to land in the 79-84% band,
+and the first on a non-HTTP surface.
+
+The audit trail from that run is the thing to look at if the layer is ever
+doubted: the refusal is recorded with `code=None`, every accepted call with
+`code=***`, and the final record carries the run's cost. Neither the API key
+nor the access code appears in it, which a test asserts.
+
 Four things were found by *running* it rather than reading it, and all four are
 worth knowing before changing that area:
 
